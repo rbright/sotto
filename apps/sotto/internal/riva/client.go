@@ -3,7 +3,6 @@ package riva
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -13,7 +12,6 @@ import (
 
 	asrpb "github.com/rbright/sotto/proto/gen/go/riva/proto"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
@@ -127,61 +125,6 @@ func DialStream(ctx context.Context, cfg StreamConfig) (*Stream, error) {
 	return s, nil
 }
 
-// recvLoop continuously receives recognition responses until stream close/error.
-func (s *Stream) recvLoop() {
-	defer close(s.recvDone)
-
-	for {
-		resp, err := s.stream.Recv()
-		if err == nil {
-			s.recordResponse(resp)
-			continue
-		}
-		if errors.Is(err, io.EOF) {
-			return
-		}
-
-		s.mu.Lock()
-		s.recvErr = err
-		s.mu.Unlock()
-		return
-	}
-}
-
-// recordResponse merges final/interim segments into stream state.
-func (s *Stream) recordResponse(resp *asrpb.StreamingRecognizeResponse) {
-	if sink := s.debugSinkJSON; sink != nil {
-		b, err := json.Marshal(resp)
-		if err == nil {
-			_, _ = sink.Write(append(b, '\n'))
-		}
-	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	for _, result := range resp.GetResults() {
-		alternatives := result.GetAlternatives()
-		if len(alternatives) == 0 {
-			continue
-		}
-		transcript := cleanSegment(alternatives[0].GetTranscript())
-		if transcript == "" {
-			continue
-		}
-		if result.GetIsFinal() {
-			s.segments = appendSegment(s.segments, transcript)
-			s.lastInterim = ""
-			continue
-		}
-
-		if s.lastInterim != "" && !isInterimContinuation(s.lastInterim, transcript) {
-			s.segments = appendSegment(s.segments, s.lastInterim)
-		}
-		s.lastInterim = transcript
-	}
-}
-
 // SendAudio sends one chunk of PCM audio over the active stream.
 func (s *Stream) SendAudio(chunk []byte) error {
 	if len(chunk) == 0 {
@@ -236,91 +179,6 @@ func (s *Stream) CloseAndCollect(ctx context.Context) ([]string, time.Duration, 
 	return segments, latency, nil
 }
 
-// collectSegments appends a valid trailing interim segment when needed.
-func collectSegments(committedSegments []string, lastInterim string) []string {
-	segments := append([]string(nil), committedSegments...)
-	if interim := cleanSegment(lastInterim); interim != "" {
-		segments = appendSegment(segments, interim)
-	}
-	return segments
-}
-
-// appendSegment merges continuation segments to avoid duplicate transcript growth.
-func appendSegment(segments []string, transcript string) []string {
-	transcript = cleanSegment(transcript)
-	if transcript == "" {
-		return segments
-	}
-	if len(segments) == 0 {
-		return append(segments, transcript)
-	}
-
-	last := cleanSegment(segments[len(segments)-1])
-	switch {
-	case transcript == last:
-		return segments
-	case strings.HasPrefix(transcript, last):
-		segments[len(segments)-1] = transcript
-		return segments
-	case strings.HasPrefix(last, transcript):
-		return segments
-	default:
-		return append(segments, transcript)
-	}
-}
-
-// isInterimContinuation decides whether an interim update extends prior speech.
-func isInterimContinuation(previous string, current string) bool {
-	previous = cleanSegment(previous)
-	current = cleanSegment(current)
-	if previous == "" || current == "" {
-		return true
-	}
-	if previous == current {
-		return true
-	}
-	if strings.HasPrefix(current, previous) || strings.HasPrefix(previous, current) {
-		return true
-	}
-
-	prevWords := strings.Fields(previous)
-	currWords := strings.Fields(current)
-	common := commonPrefixWords(prevWords, currWords)
-	shorter := len(prevWords)
-	if len(currWords) < shorter {
-		shorter = len(currWords)
-	}
-	if shorter == 0 {
-		return true
-	}
-	return common*2 >= shorter
-}
-
-// commonPrefixWords counts shared leading words across two slices.
-func commonPrefixWords(left []string, right []string) int {
-	limit := len(left)
-	if len(right) < limit {
-		limit = len(right)
-	}
-	count := 0
-	for i := 0; i < limit; i++ {
-		if left[i] != right[i] {
-			break
-		}
-		count++
-	}
-	return count
-}
-
-// cleanSegment normalizes transcript whitespace.
-func cleanSegment(raw string) string {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return ""
-	}
-	return strings.Join(strings.Fields(raw), " ")
-}
-
 // Cancel aborts stream processing and closes the underlying grpc connection.
 func (s *Stream) Cancel() error {
 	s.mu.Lock()
@@ -330,24 +188,4 @@ func (s *Stream) Cancel() error {
 	}
 	s.mu.Unlock()
 	return s.conn.Close()
-}
-
-// waitForReady blocks until gRPC connection enters Ready or fails.
-func waitForReady(ctx context.Context, conn *grpc.ClientConn) error {
-	for {
-		state := conn.GetState()
-		switch state {
-		case connectivity.Ready:
-			return nil
-		case connectivity.Shutdown:
-			return errors.New("grpc connection entered shutdown state")
-		}
-
-		if !conn.WaitForStateChange(ctx, state) {
-			if ctx.Err() != nil {
-				return ctx.Err()
-			}
-			return fmt.Errorf("grpc readiness wait timed out in state %s", state.String())
-		}
-	}
 }
