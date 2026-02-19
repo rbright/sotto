@@ -8,7 +8,8 @@ import (
 )
 
 type parseState struct {
-	inVocabSet *VocabSet
+	inVocabSet        *VocabSet
+	vocabSetStartLine int
 }
 
 func Parse(content string, base Config) (Config, []Warning, error) {
@@ -28,6 +29,7 @@ func Parse(content string, base Config) (Config, []Warning, error) {
 			if trimmed == "}" {
 				cfg.Vocab.Sets[state.inVocabSet.Name] = *state.inVocabSet
 				state.inVocabSet = nil
+				state.vocabSetStartLine = 0
 				continue
 			}
 
@@ -53,6 +55,7 @@ func Parse(content string, base Config) (Config, []Warning, error) {
 				})
 			}
 			state.inVocabSet = &set
+			state.vocabSetStartLine = line
 			continue
 		}
 
@@ -70,7 +73,11 @@ func Parse(content string, base Config) (Config, []Warning, error) {
 	}
 
 	if state.inVocabSet != nil {
-		return Config{}, nil, fmt.Errorf("line %d: unterminated vocabset %q block", scannerPosition(content), state.inVocabSet.Name)
+		line := state.vocabSetStartLine
+		if line <= 0 {
+			line = scannerPosition(content)
+		}
+		return Config{}, nil, fmt.Errorf("line %d: unterminated vocabset %q block", line, state.inVocabSet.Name)
 	}
 
 	validatedWarnings, err := Validate(cfg)
