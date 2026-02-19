@@ -89,7 +89,7 @@
           options.programs.sotto.enable = lib.mkEnableOption "Install the sotto CLI";
 
           config = lib.mkIf config.programs.sotto.enable {
-            environment.systemPackages = [ self.packages.${pkgs.system}.sotto ];
+            environment.systemPackages = [ self.packages.${pkgs.stdenv.hostPlatform.system}.sotto ];
           };
         };
     };
