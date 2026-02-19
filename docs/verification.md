@@ -42,9 +42,9 @@ Manual checklist:
 
 1. `sotto doctor` reports audio + Riva ready.
 2. `sotto toggle` (start), speak a short phrase, `sotto toggle` (stop).
-3. Verify non-empty transcript commit.
-4. Verify clipboard retention after commit.
-5. Verify configured paste behavior (if enabled).
-6. Verify cancel path (`sotto cancel`) does not alter clipboard.
-7. Verify Riva-down failure path is safe (no unintended output side effects).
-8. Verify stale socket recovery after abnormal process termination.
+3. Confirm a non-empty transcript commit.
+4. Ensure clipboard retention after commit.
+5. Check configured paste behavior (if enabled).
+6. Confirm the cancel path (`sotto cancel`) does not alter clipboard.
+7. Ensure the Riva-down failure path is safe (no unintended output side effects).
+8. Check stale socket recovery after abnormal process termination.
