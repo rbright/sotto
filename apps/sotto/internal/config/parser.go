@@ -27,6 +27,9 @@ func Parse(content string, base Config) (Config, []Warning, error) {
 
 		if state.inVocabSet != nil {
 			if trimmed == "}" {
+				if cfg.Vocab.Sets == nil {
+					cfg.Vocab.Sets = make(map[string]VocabSet)
+				}
 				cfg.Vocab.Sets[state.inVocabSet.Name] = *state.inVocabSet
 				state.inVocabSet = nil
 				state.vocabSetStartLine = 0
