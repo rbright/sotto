@@ -45,6 +45,7 @@
                     pkgs.curl
                     pkgs.hyprland
                     pkgs.pipewire
+                    pkgs.systemd
                     pkgs.wl-clipboard
                   ]
                 }
