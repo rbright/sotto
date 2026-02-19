@@ -94,7 +94,8 @@ func TestAcquireDoesNotUnlinkWhenProbeInconclusive(t *testing.T) {
 
 	_, err = Acquire(context.Background(), socketPath, 30*time.Millisecond, 0, nil)
 	require.Error(t, err)
-	require.ErrorIs(t, err, ErrAlreadyRunning)
+	require.NotErrorIs(t, err, ErrAlreadyRunning)
+	require.Contains(t, err.Error(), "probe existing socket")
 
 	_, statErr := os.Stat(socketPath)
 	require.NoError(t, statErr)
