@@ -92,7 +92,7 @@ func (t *Transcriber) Start(ctx context.Context) error {
 		}(),
 	})
 	if err != nil {
-		t.closeDebugArtifacts()
+		t.closeDebugArtifactsLocked()
 		return err
 	}
 	t.stream = stream
@@ -100,7 +100,7 @@ func (t *Transcriber) Start(ctx context.Context) error {
 	capture, err := audio.StartCapture(ctx, selection.Device)
 	if err != nil {
 		_ = stream.Cancel()
-		t.closeDebugArtifacts()
+		t.closeDebugArtifactsLocked()
 		return err
 	}
 	t.capture = capture
@@ -296,6 +296,11 @@ func resolveStateDir() (string, error) {
 func (t *Transcriber) closeDebugArtifacts() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	t.closeDebugArtifactsLocked()
+}
+
+// closeDebugArtifactsLocked closes debug sinks while caller holds t.mu.
+func (t *Transcriber) closeDebugArtifactsLocked() {
 	if t.debugGRPCFile != nil {
 		_ = t.debugGRPCFile.Close()
 		t.debugGRPCFile = nil
