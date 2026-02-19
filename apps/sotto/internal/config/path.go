@@ -7,14 +7,14 @@ import (
 	"strings"
 )
 
-// ResolvePath applies CLI/XDG/home fallback rules for config.conf location.
+// ResolvePath applies CLI/XDG/home fallback rules for config.jsonc location.
 func ResolvePath(explicit string) (string, error) {
 	if strings.TrimSpace(explicit) != "" {
 		return explicit, nil
 	}
 
 	if xdg := strings.TrimSpace(os.Getenv("XDG_CONFIG_HOME")); xdg != "" {
-		return filepath.Join(xdg, "sotto", "config.conf"), nil
+		return filepath.Join(xdg, "sotto", "config.jsonc"), nil
 	}
 
 	home, err := os.UserHomeDir()
@@ -22,5 +22,12 @@ func ResolvePath(explicit string) (string, error) {
 		return "", errors.New("unable to resolve user home for config fallback")
 	}
 
-	return filepath.Join(home, ".config", "sotto", "config.conf"), nil
+	return filepath.Join(home, ".config", "sotto", "config.jsonc"), nil
+}
+
+func legacyPathFor(path string) string {
+	if strings.HasSuffix(path, "config.jsonc") {
+		return strings.TrimSuffix(path, "config.jsonc") + "config.conf"
+	}
+	return ""
 }

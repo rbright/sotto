@@ -96,7 +96,7 @@ Commands:
   help      Show this help
 
 Flags:
-  --config PATH   Config file path (default: $XDG_CONFIG_HOME/sotto/config.conf)
+  --config PATH   Config file path (default: $XDG_CONFIG_HOME/sotto/config.jsonc)
   -h, --help      Show help
   --version       Show version
 `, binaryName)

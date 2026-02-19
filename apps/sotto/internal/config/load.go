@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 )
 
 // Loaded captures resolved config path, parsed values, and non-fatal warnings.
@@ -22,28 +23,52 @@ func Load(explicitPath string) (Loaded, error) {
 	}
 
 	base := Default()
+	loadedPath := resolvedPath
+	warnings := make([]Warning, 0)
+
 	content, err := os.ReadFile(resolvedPath)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
+		if !errors.Is(err, os.ErrNotExist) {
+			return Loaded{}, fmt.Errorf("read config %q: %w", resolvedPath, err)
+		}
+
+		if strings.TrimSpace(explicitPath) == "" {
+			legacyPath := legacyPathFor(resolvedPath)
+			if legacyPath != "" {
+				legacyContent, legacyErr := os.ReadFile(legacyPath)
+				if legacyErr == nil {
+					content = legacyContent
+					loadedPath = legacyPath
+					warnings = append(warnings, Warning{
+						Message: fmt.Sprintf("loaded legacy config path %q; migrate to %q (JSONC)", legacyPath, resolvedPath),
+					})
+				} else if !errors.Is(legacyErr, os.ErrNotExist) {
+					return Loaded{}, fmt.Errorf("read config %q: %w", legacyPath, legacyErr)
+				}
+			}
+		}
+
+		if content == nil {
+			warnings = append(warnings, Warning{
+				Message: fmt.Sprintf("config file %q not found; using defaults", resolvedPath),
+			})
 			return Loaded{
-				Path:   resolvedPath,
-				Config: base,
-				Warnings: []Warning{{
-					Message: fmt.Sprintf("config file %q not found; using defaults", resolvedPath),
-				}},
-				Exists: false,
+				Path:     resolvedPath,
+				Config:   base,
+				Warnings: warnings,
+				Exists:   false,
 			}, nil
 		}
-		return Loaded{}, fmt.Errorf("read config %q: %w", resolvedPath, err)
 	}
 
-	cfg, warnings, err := Parse(string(content), base)
+	cfg, parseWarnings, err := Parse(string(content), base)
 	if err != nil {
-		return Loaded{}, fmt.Errorf("parse config %q: %w", resolvedPath, err)
+		return Loaded{}, fmt.Errorf("parse config %q: %w", loadedPath, err)
 	}
+	warnings = append(warnings, parseWarnings...)
 
 	return Loaded{
-		Path:     resolvedPath,
+		Path:     loadedPath,
 		Config:   cfg,
 		Warnings: warnings,
 		Exists:   true,

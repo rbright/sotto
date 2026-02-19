@@ -83,8 +83,12 @@ sotto version
 Config resolution order:
 
 1. `--config <path>`
-2. `$XDG_CONFIG_HOME/sotto/config.conf`
-3. `~/.config/sotto/config.conf`
+2. `$XDG_CONFIG_HOME/sotto/config.jsonc`
+3. `~/.config/sotto/config.jsonc`
+
+Compatibility note:
+
+- if the default `.jsonc` file is missing, sotto will fall back to legacy `config.conf` automatically.
 
 See full key reference and examples in:
 
