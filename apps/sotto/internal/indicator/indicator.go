@@ -3,6 +3,7 @@ package indicator
 import (
 	"context"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -25,9 +26,10 @@ type HyprNotify struct {
 	cfg    config.IndicatorConfig
 	logger *slog.Logger
 
-	mu             sync.Mutex
-	focusedMonitor string
-	soundMu        sync.Mutex
+	mu                    sync.Mutex
+	focusedMonitor        string
+	desktopNotificationID uint32
+	soundMu               sync.Mutex
 }
 
 func NewHyprNotify(cfg config.IndicatorConfig, logger *slog.Logger) *HyprNotify {
@@ -41,7 +43,7 @@ func (h *HyprNotify) ShowRecording(ctx context.Context) {
 	}
 	h.ensureFocusedMonitor(ctx)
 	h.run(ctx, func(ctx context.Context) error {
-		return hypr.Notify(ctx, 1, 300000, "rgb(89b4fa)", h.cfg.TextRecording)
+		return h.notify(ctx, 1, 300000, "rgb(89b4fa)", h.cfg.TextRecording)
 	})
 }
 
@@ -50,7 +52,7 @@ func (h *HyprNotify) ShowTranscribing(ctx context.Context) {
 		return
 	}
 	h.run(ctx, func(ctx context.Context) error {
-		return hypr.Notify(ctx, 1, 300000, "rgb(cba6f7)", h.cfg.TextProcessing)
+		return h.notify(ctx, 1, 300000, "rgb(cba6f7)", h.cfg.TextProcessing)
 	})
 }
 
@@ -66,7 +68,7 @@ func (h *HyprNotify) ShowError(ctx context.Context, text string) {
 		timeout = 1200
 	}
 	h.run(ctx, func(ctx context.Context) error {
-		return hypr.Notify(ctx, 3, timeout, "rgb(f38ba8)", text)
+		return h.notify(ctx, 3, timeout, "rgb(f38ba8)", text)
 	})
 }
 
@@ -86,7 +88,7 @@ func (h *HyprNotify) Hide(ctx context.Context) {
 	if !h.cfg.Enable {
 		return
 	}
-	h.run(ctx, hypr.DismissNotify)
+	h.run(ctx, h.dismiss)
 }
 
 func (h *HyprNotify) FocusedMonitor() string {
@@ -112,6 +114,53 @@ func (h *HyprNotify) ensureFocusedMonitor(ctx context.Context) {
 	h.mu.Lock()
 	h.focusedMonitor = monitor
 	h.mu.Unlock()
+}
+
+func (h *HyprNotify) notify(ctx context.Context, icon int, timeoutMS int, color string, text string) error {
+	if strings.EqualFold(strings.TrimSpace(h.cfg.Backend), "desktop") {
+		return h.notifyDesktop(ctx, timeoutMS, text)
+	}
+	return hypr.Notify(ctx, icon, timeoutMS, color, text)
+}
+
+func (h *HyprNotify) dismiss(ctx context.Context) error {
+	if strings.EqualFold(strings.TrimSpace(h.cfg.Backend), "desktop") {
+		return h.dismissDesktop(ctx)
+	}
+	return hypr.DismissNotify(ctx)
+}
+
+func (h *HyprNotify) notifyDesktop(ctx context.Context, timeoutMS int, text string) error {
+	h.mu.Lock()
+	replaceID := h.desktopNotificationID
+	h.mu.Unlock()
+
+	appName := strings.TrimSpace(h.cfg.DesktopAppName)
+	if appName == "" {
+		appName = "sotto-indicator"
+	}
+
+	id, err := desktopNotify(ctx, appName, replaceID, text, timeoutMS)
+	if err != nil {
+		return err
+	}
+
+	h.mu.Lock()
+	h.desktopNotificationID = id
+	h.mu.Unlock()
+	return nil
+}
+
+func (h *HyprNotify) dismissDesktop(ctx context.Context) error {
+	h.mu.Lock()
+	id := h.desktopNotificationID
+	h.desktopNotificationID = 0
+	h.mu.Unlock()
+
+	if id == 0 {
+		return nil
+	}
+	return desktopDismiss(ctx, id)
 }
 
 func (h *HyprNotify) run(ctx context.Context, fn func(context.Context) error) {

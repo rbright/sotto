@@ -20,6 +20,8 @@ func Default() Config {
 		Transcript: TranscriptConfig{TrailingSpace: true},
 		Indicator: IndicatorConfig{
 			Enable:            true,
+			Backend:           "hypr",
+			DesktopAppName:    "sotto-indicator",
 			SoundEnable:       true,
 			SoundStartFile:    "",
 			SoundStopFile:     "",
