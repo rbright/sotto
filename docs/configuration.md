@@ -53,6 +53,8 @@ Unknown keys fail fast with line-numbered errors.
 | Key | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `indicator.enable` | bool | `true` | visual indicator on/off |
+| `indicator.backend` | string | `hypr` | indicator transport (`hypr` or `desktop` via freedesktop notifications) |
+| `indicator.desktop_app_name` | string | `sotto-indicator` | desktop notification app name (`desktop` backend) |
 | `indicator.sound_enable` | bool | `true` | cue sounds on/off |
 | `indicator.sound_start_file` | string | empty | optional WAV path |
 | `indicator.sound_stop_file` | string | empty | optional WAV path |
@@ -64,6 +66,14 @@ Unknown keys fail fast with line-numbered errors.
 | `indicator.text_transcribing` | string | alias of `indicator.text_processing` | compatibility alias |
 | `indicator.text_error` | string | `Speech recognition error` | error label |
 | `indicator.error_timeout_ms` | int | `1600` | must be `>= 0`; `0` uses runtime fallback |
+
+For desktop notifications rendered by mako, you can place the indicator at the top-center with an app-name rule:
+
+```conf
+[app-name="sotto-indicator"]
+anchor=top-center
+default-timeout=0
+```
 
 ## Vocabulary behavior
 
@@ -93,6 +103,8 @@ asr.model =
 transcript.trailing_space = true
 
 indicator.enable = true
+indicator.backend = hypr
+indicator.desktop_app_name = sotto-indicator
 indicator.sound_enable = true
 indicator.sound_start_file = /home/user/sounds/toggle_on.wav
 indicator.sound_stop_file = /home/user/sounds/toggle_off.wav

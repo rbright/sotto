@@ -18,6 +18,7 @@ Local-first CLI for automated speech recognition (ASR).
 - streaming ASR via local NVIDIA Riva gRPC endpoint
 - transcript normalization with optional trailing space
 - output adapters: clipboard + optional paste dispatch (command or configurable shortcut)
+- indicator transport configurable (`hypr` or desktop notifications)
 - session diagnostics via `sotto doctor`
 - JSONL session logs for observability/debugging
 
