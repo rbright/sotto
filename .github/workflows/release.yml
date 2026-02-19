@@ -1,0 +1,37 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v27
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Build
+        run: nix build 'path:.#sotto'
+
+      - name: Package binary
+        run: |
+          mkdir -p dist
+          cp result/bin/sotto dist/sotto
+          chmod +x dist/sotto
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/sotto
+          generate_release_notes: true

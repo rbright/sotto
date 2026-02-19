@@ -1,0 +1,57 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: ^apps/sotto/(vendor/|proto/third_party/)
+        stages: [pre-commit]
+      - id: end-of-file-fixer
+        exclude: ^apps/sotto/(vendor/|proto/third_party/)
+        stages: [pre-commit]
+      - id: check-added-large-files
+        exclude: ^apps/sotto/(vendor/|proto/third_party/)
+        stages: [pre-commit]
+      - id: check-merge-conflict
+        stages: [pre-commit]
+
+  - repo: local
+    hooks:
+      - id: go-fmt-check
+        name: go fmt check
+        entry: just fmt-check
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
+      - id: lint-nix
+        name: nix lint
+        entry: just lint-nix
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
+
+      - id: ci-check
+        name: ci-check
+        entry: just ci-check
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
+
+      - id: nix-build-check
+        name: nix build package
+        entry: just nix-build-check
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
+
+      - id: nix-run-help-check
+        name: nix run --help smoke
+        entry: just nix-run-help-check
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
