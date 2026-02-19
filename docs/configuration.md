@@ -36,6 +36,7 @@ Unknown keys fail fast with line-numbered errors.
 | `audio.input` | string | `default` | preferred input device match |
 | `audio.fallback` | string | `default` | fallback device match |
 | `paste.enable` | bool | `true` | enables paste dispatch after clipboard set |
+| `paste.shortcut` | string | `CTRL,V` | sendshortcut payload used by default paste adapter (`paste_cmd` unset) |
 | `asr.automatic_punctuation` | bool | `true` | ASR punctuation hint |
 | `asr.language_code` | string | `en-US` | ASR language code |
 | `asr.model` | string | `` (empty) | optional explicit ASR model |
@@ -82,6 +83,7 @@ audio.input = default
 audio.fallback = default
 
 paste.enable = true
+paste.shortcut = CTRL,V
 clipboard_cmd = wl-copy --trim-newline
 paste_cmd =
 
