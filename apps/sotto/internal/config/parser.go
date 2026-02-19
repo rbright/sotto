@@ -215,6 +215,18 @@ func applyRootKey(cfg *Config, key, value string) error {
 			return fmt.Errorf("invalid bool for indicator.enable: %w", err)
 		}
 		cfg.Indicator.Enable = b
+	case "indicator.backend":
+		v, err := parseStringValue(value)
+		if err != nil {
+			return err
+		}
+		cfg.Indicator.Backend = strings.TrimSpace(v)
+	case "indicator.desktop_app_name":
+		v, err := parseStringValue(value)
+		if err != nil {
+			return err
+		}
+		cfg.Indicator.DesktopAppName = strings.TrimSpace(v)
 	case "indicator.sound_enable":
 		b, err := strconv.ParseBool(value)
 		if err != nil {

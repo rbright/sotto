@@ -24,6 +24,16 @@ func Validate(cfg Config) ([]Warning, error) {
 	if strings.TrimSpace(cfg.ASR.LanguageCode) == "" {
 		return nil, fmt.Errorf("asr.language_code must not be empty")
 	}
+	backend := strings.ToLower(strings.TrimSpace(cfg.Indicator.Backend))
+	if backend == "" {
+		return nil, fmt.Errorf("indicator.backend must not be empty")
+	}
+	if backend != "hypr" && backend != "desktop" {
+		return nil, fmt.Errorf("indicator.backend must be one of: hypr, desktop")
+	}
+	if backend == "desktop" && strings.TrimSpace(cfg.Indicator.DesktopAppName) == "" {
+		return nil, fmt.Errorf("indicator.desktop_app_name must not be empty when indicator.backend=desktop")
+	}
 	if cfg.Indicator.Height <= 0 {
 		return nil, fmt.Errorf("indicator.height must be > 0")
 	}

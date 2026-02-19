@@ -66,6 +66,41 @@ printf '%s\n' "$*" >> "${HYPR_ARGS_FILE}"
 	require.Equal(t, "--quiet dispatch notify 3 1200 rgb(f38ba8) custom error\n", string(data))
 }
 
+func TestDesktopIndicatorUsesBusctlNotifyAndDismiss(t *testing.T) {
+	busctlArgs := filepath.Join(t.TempDir(), "busctl-args.log")
+	t.Setenv("BUSCTL_ARGS_FILE", busctlArgs)
+	installBusctlStub(t)
+
+	hyprArgs := filepath.Join(t.TempDir(), "hypr-args.log")
+	t.Setenv("HYPR_ARGS_FILE", hyprArgs)
+	installHyprctlStub(t, `
+if [[ "${1:-}" == "-j" && "${2:-}" == "monitors" ]]; then
+  echo '[{"name":"DP-1","focused":true}]'
+  exit 0
+fi
+printf '%s\n' "$*" >> "${HYPR_ARGS_FILE}"
+`)
+
+	cfg := config.Default().Indicator
+	cfg.Enable = true
+	cfg.SoundEnable = false
+	cfg.Backend = "desktop"
+	cfg.DesktopAppName = "sotto-indicator"
+
+	notify := NewHyprNotify(cfg, nil)
+	notify.ShowRecording(context.Background())
+	notify.ShowTranscribing(context.Background())
+	notify.Hide(context.Background())
+
+	data, err := os.ReadFile(busctlArgs)
+	require.NoError(t, err)
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	require.Len(t, lines, 3)
+	require.Contains(t, lines[0], "Notify susssasa{sv}i sotto-indicator 0")
+	require.Contains(t, lines[1], "Notify susssasa{sv}i sotto-indicator 42")
+	require.Contains(t, lines[2], "CloseNotification u 42")
+}
+
 func TestHyprNotifyDisabledSkipsHyprctlDispatch(t *testing.T) {
 	argsFile := filepath.Join(t.TempDir(), "hypr-args.log")
 	t.Setenv("HYPR_ARGS_FILE", argsFile)
@@ -108,6 +143,22 @@ func installHyprctlStub(t *testing.T, body string) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "hyprctl")
 	script := "#!/usr/bin/env bash\nset -euo pipefail\n" + body + "\n"
+	require.NoError(t, os.WriteFile(path, []byte(script), 0o755))
+	t.Setenv("PATH", dir+":"+os.Getenv("PATH"))
+}
+
+func installBusctlStub(t *testing.T) {
+	t.Helper()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "busctl")
+	script := `#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >> "${BUSCTL_ARGS_FILE}"
+if [[ "$*" == *" Notify "* ]]; then
+  echo "u 42"
+fi
+`
 	require.NoError(t, os.WriteFile(path, []byte(script), 0o755))
 	t.Setenv("PATH", dir+":"+os.Getenv("PATH"))
 }

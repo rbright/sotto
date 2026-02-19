@@ -152,6 +152,22 @@ func TestParseRejectsUnterminatedSingleQuotedString(t *testing.T) {
 	}
 }
 
+func TestParseIndicatorBackend(t *testing.T) {
+	cfg, _, err := Parse(`
+indicator.backend = desktop
+indicator.desktop_app_name = sotto-indicator
+`, Default())
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if cfg.Indicator.Backend != "desktop" {
+		t.Fatalf("expected indicator.backend=desktop, got %q", cfg.Indicator.Backend)
+	}
+	if cfg.Indicator.DesktopAppName != "sotto-indicator" {
+		t.Fatalf("unexpected indicator.desktop_app_name: %q", cfg.Indicator.DesktopAppName)
+	}
+}
+
 func TestParseIndicatorSoundEnable(t *testing.T) {
 	cfg, _, err := Parse(`indicator.sound_enable = false`, Default())
 	if err != nil {

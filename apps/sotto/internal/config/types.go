@@ -37,6 +37,8 @@ type TranscriptConfig struct {
 
 type IndicatorConfig struct {
 	Enable            bool
+	Backend           string
+	DesktopAppName    string
 	SoundEnable       bool
 	SoundStartFile    string
 	SoundStopFile     string

@@ -32,6 +32,11 @@ func TestValidateRejectsInvalidCoreFields(t *testing.T) {
 		{name: "empty riva http", mutate: func(c *Config) { c.RivaHTTP = "" }, wantErr: "riva_http"},
 		{name: "bad health path", mutate: func(c *Config) { c.RivaHealthPath = "v1/health" }, wantErr: "must start"},
 		{name: "empty language", mutate: func(c *Config) { c.ASR.LanguageCode = "" }, wantErr: "language_code"},
+		{name: "invalid indicator backend", mutate: func(c *Config) { c.Indicator.Backend = "unknown" }, wantErr: "indicator.backend"},
+		{name: "missing desktop app name", mutate: func(c *Config) {
+			c.Indicator.Backend = "desktop"
+			c.Indicator.DesktopAppName = ""
+		}, wantErr: "indicator.desktop_app_name"},
 		{name: "invalid indicator height", mutate: func(c *Config) { c.Indicator.Height = 0 }, wantErr: "indicator.height"},
 		{name: "negative error timeout", mutate: func(c *Config) { c.Indicator.ErrorTimeoutMS = -1 }, wantErr: "error_timeout"},
 		{name: "invalid max phrases", mutate: func(c *Config) { c.Vocab.MaxPhrases = 0 }, wantErr: "vocab.max_phrases"},
