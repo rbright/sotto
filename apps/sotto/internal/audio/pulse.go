@@ -316,9 +316,6 @@ func (c *Capture) Close() {
 
 // onPCM receives raw Pulse frames and emits chunkSizeBytes slices to c.chunks.
 func (c *Capture) onPCM(buffer []byte) (int, error) {
-	c.inflight.Add(1)
-	defer c.inflight.Done()
-
 	if len(buffer) == 0 {
 		return 0, nil
 	}
@@ -329,13 +326,13 @@ func (c *Capture) onPCM(buffer []byte) (int, error) {
 	default:
 	}
 
-	c.bytes.Add(int64(len(buffer)))
-
 	c.mu.Lock()
 	if c.stopped {
 		c.mu.Unlock()
 		return 0, io.EOF
 	}
+	// Guard Add under the same mutex as c.stopped to avoid Add/Wait races.
+	c.inflight.Add(1)
 
 	c.rawPCM = append(c.rawPCM, buffer...)
 	c.pending = append(c.pending, buffer...)
@@ -348,6 +345,9 @@ func (c *Capture) onPCM(buffer []byte) (int, error) {
 		chunks = append(chunks, chunk)
 	}
 	c.mu.Unlock()
+	defer c.inflight.Done()
+
+	c.bytes.Add(int64(len(buffer)))
 
 	for _, chunk := range chunks {
 		select {
