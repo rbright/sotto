@@ -163,3 +163,19 @@ func TestCloseDebugArtifactsClosesFile(t *testing.T) {
 	require.Error(t, err)
 	require.Nil(t, transcriber.debugGRPCFile)
 }
+
+func TestCloseDebugArtifactsLockedClosesFileWhileMutexHeld(t *testing.T) {
+	file, err := os.CreateTemp(t.TempDir(), "*.json")
+	require.NoError(t, err)
+
+	transcriber := NewTranscriber(config.Default(), nil)
+	transcriber.debugGRPCFile = file
+
+	transcriber.mu.Lock()
+	transcriber.closeDebugArtifactsLocked()
+	transcriber.mu.Unlock()
+
+	_, err = file.Write([]byte("x"))
+	require.Error(t, err)
+	require.Nil(t, transcriber.debugGRPCFile)
+}
