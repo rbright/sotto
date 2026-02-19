@@ -215,3 +215,24 @@ vocabset internal {
 		t.Fatalf("expected vocabset start line in error, got %v", err)
 	}
 }
+
+func TestParseInitializesNilVocabMap(t *testing.T) {
+	base := Default()
+	base.Vocab.Sets = nil
+
+	cfg, _, err := Parse(`
+vocabset team {
+  boost = 10
+  phrases = [ "sotto" ]
+}
+`, base)
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if cfg.Vocab.Sets == nil {
+		t.Fatal("expected vocab map to be initialized")
+	}
+	if _, ok := cfg.Vocab.Sets["team"]; !ok {
+		t.Fatalf("expected parsed vocab set to be present")
+	}
+}
