@@ -17,7 +17,7 @@ Local-first CLI for automated speech recognition (ASR).
 - local audio capture via PipeWire/Pulse
 - streaming ASR via local NVIDIA Riva gRPC endpoint
 - transcript normalization with optional trailing space
-- output adapters: clipboard + optional paste dispatch
+- output adapters: clipboard + optional paste dispatch (command or configurable shortcut)
 - session diagnostics via `sotto doctor`
 - JSONL session logs for observability/debugging
 
