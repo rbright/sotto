@@ -48,7 +48,7 @@ func Acquire(
 			return nil, ErrAlreadyRunning
 		}
 		if probeErr != nil {
-			return nil, fmt.Errorf("%w: probe existing socket %s: %v", ErrAlreadyRunning, path, probeErr)
+			return nil, fmt.Errorf("probe existing socket %s: %w", path, probeErr)
 		}
 
 		if removeErr := os.Remove(path); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
