@@ -37,6 +37,8 @@ type Stream struct {
 	conn   *grpc.ClientConn
 	stream asrpb.RivaSpeechRecognition_StreamingRecognizeClient
 
+	cancel context.CancelFunc
+
 	recvDone chan struct{}
 
 	mu            sync.Mutex
@@ -76,9 +78,13 @@ func DialStream(ctx context.Context, cfg StreamConfig) (*Stream, error) {
 		return nil, fmt.Errorf("wait for riva grpc readiness: %w", err)
 	}
 
+	streamCtx, streamCancel := context.WithCancel(ctx)
 	client := asrpb.NewRivaSpeechRecognitionClient(conn)
-	stream, err := client.StreamingRecognize(ctx)
+	stream, err := openRecognizeWithTimeout(streamCtx, cfg.DialTimeout, func() (asrpb.RivaSpeechRecognition_StreamingRecognizeClient, error) {
+		return client.StreamingRecognize(streamCtx)
+	})
 	if err != nil {
+		streamCancel()
 		_ = conn.Close()
 		return nil, fmt.Errorf("open streaming recognizer: %w", err)
 	}
@@ -110,7 +116,10 @@ func DialStream(ctx context.Context, cfg StreamConfig) (*Stream, error) {
 		)
 	}
 
-	if err := stream.Send(req); err != nil {
+	if err := runWithTimeout(streamCtx, cfg.DialTimeout, func() error {
+		return stream.Send(req)
+	}); err != nil {
+		streamCancel()
 		_ = conn.Close()
 		return nil, fmt.Errorf("send initial streaming config: %w", err)
 	}
@@ -118,6 +127,7 @@ func DialStream(ctx context.Context, cfg StreamConfig) (*Stream, error) {
 	s := &Stream{
 		conn:          conn,
 		stream:        stream,
+		cancel:        streamCancel,
 		recvDone:      make(chan struct{}),
 		debugSinkJSON: cfg.DebugResponseSinkJSON,
 	}
@@ -162,6 +172,9 @@ func (s *Stream) CloseAndCollect(ctx context.Context) ([]string, time.Duration, 
 	select {
 	case <-s.recvDone:
 	case <-ctx.Done():
+		if s.cancel != nil {
+			s.cancel()
+		}
 		_ = s.conn.Close()
 		return nil, 0, ctx.Err()
 	}
@@ -169,7 +182,12 @@ func (s *Stream) CloseAndCollect(ctx context.Context) ([]string, time.Duration, 
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	defer func() { _ = s.conn.Close() }()
+	defer func() {
+		if s.cancel != nil {
+			s.cancel()
+		}
+		_ = s.conn.Close()
+	}()
 
 	if s.recvErr != nil {
 		return nil, latency, s.recvErr
@@ -187,5 +205,8 @@ func (s *Stream) Cancel() error {
 		_ = s.stream.CloseSend()
 	}
 	s.mu.Unlock()
+	if s.cancel != nil {
+		s.cancel()
+	}
 	return s.conn.Close()
 }
