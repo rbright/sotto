@@ -175,6 +175,32 @@ func TestDialStreamReadinessTimeout(t *testing.T) {
 	require.Contains(t, err.Error(), "readiness")
 }
 
+func TestRunWithTimeoutTimesOut(t *testing.T) {
+	err := runWithTimeout(context.Background(), 20*time.Millisecond, func() error {
+		time.Sleep(120 * time.Millisecond)
+		return nil
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "timed out")
+}
+
+func TestOpenRecognizeWithTimeoutTimesOut(t *testing.T) {
+	_, err := openRecognizeWithTimeout(context.Background(), 20*time.Millisecond, func() (asrpb.RivaSpeechRecognition_StreamingRecognizeClient, error) {
+		time.Sleep(120 * time.Millisecond)
+		return nil, nil
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "timed out")
+}
+
+func TestRunWithTimeoutReturnsCallError(t *testing.T) {
+	want := errors.New("boom")
+	err := runWithTimeout(context.Background(), time.Second, func() error {
+		return want
+	})
+	require.ErrorIs(t, err, want)
+}
+
 func TestCloseAndCollectReturnsServerStreamError(t *testing.T) {
 	server := &testRivaServer{streamErr: status.Error(codes.Internal, "boom")}
 	endpoint, shutdown := startTestRivaServer(t, server)
