@@ -189,7 +189,22 @@ func (t *Transcriber) sendLoop() {
 	errCh := t.sendErrCh
 	t.mu.Unlock()
 
-	if capture == nil || stream == nil || errCh == nil {
+	if errCh == nil {
+		return
+	}
+
+	sent := false
+	sendResult := func(err error) {
+		if sent {
+			return
+		}
+		errCh <- err
+		sent = true
+	}
+	defer sendResult(nil)
+
+	if capture == nil || stream == nil {
+		sendResult(session.ErrPipelineUnavailable)
 		return
 	}
 
@@ -199,11 +214,10 @@ func (t *Transcriber) sendLoop() {
 		}
 		if err := stream.SendAudio(chunk); err != nil {
 			_ = capture.Stop()
-			errCh <- err
+			sendResult(err)
 			return
 		}
 	}
-	errCh <- nil
 }
 
 func describeDevice(device audio.Device) string {
