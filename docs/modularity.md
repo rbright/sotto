@@ -1,18 +1,18 @@
 # Modularity Review
 
-This document captures the current architecture cleanliness assessment and the next refactor slices.
+This document tracks readability risk and safe refactor slices.
 
-## Current status
+## Current state
 
-### What is clean today
+### What is working well
 
-- package boundaries are clear and responsibility-oriented (`session`, `audio`, `riva`, `output`, `indicator`, etc.)
-- side-effect adapters are mostly isolated from parser/FSM/domain logic
-- test coverage is broad enough to begin safe extraction work
+- package boundaries are responsibility-oriented (`session`, `audio`, `riva`, `output`, `indicator`)
+- state/FSM logic is separated from most I/O adapters
+- test coverage is broad enough to support behavior-preserving extraction
 
-### Remaining readability risk
+### Remaining readability hotspots
 
-A handful of handwritten files are still large (roughly 300–430 LOC), which increases cognitive load:
+Large handwritten files still carry higher review/refactor risk:
 
 - `internal/config/parser.go`
 - `internal/audio/pulse.go`
@@ -21,33 +21,26 @@ A handful of handwritten files are still large (roughly 300–430 LOC), which in
 - `internal/pipeline/transcriber.go`
 - `internal/session/session.go`
 
-Generated code (`vendor/**`, `proto/gen/**`) is excluded from readability thresholds.
+Generated code is out of scope for these thresholds.
 
 ## Refactor slices (behavior-preserving)
 
 1. `internal/config/parser.go`
-   - extract lexer/token helpers
-   - extract root-key application map
-   - isolate vocabset block parser
-
+   - isolate token/scalar helpers
+   - isolate vocab block parser
 2. `internal/audio/pulse.go`
-   - separate device selection from capture lifecycle
-   - isolate chunker/state bookkeeping from Pulse stream setup
-
+   - separate device selection from capture loop
 3. `internal/app/app.go`
-   - split command dispatch, IPC forwarding, and runtime bootstrap wiring
-
+   - split command dispatch, IPC forwarding, runtime bootstrap
 4. `internal/riva/client.go`
-   - split stream transport lifecycle from transcript segment merge logic
-
+   - split stream lifecycle from segment merge helpers
 5. `internal/pipeline/transcriber.go`
-   - split debug artifact writers and file path resolution from transcribe lifecycle
-
+   - split debug artifact writers from orchestration
 6. `internal/session/session.go`
-   - isolate action handling and result assembly from transition orchestration
+   - isolate transition handling from commit/result assembly
 
-## Working guardrails
+## Guardrails
 
-- soft target: keep handwritten files near `<= 250` LOC where practical
-- files above `~350` LOC should get explicit extraction-plan notes before changes
-- preserve behavior with tests first, then extract in small slices
+- soft target: handwritten files near `<= 250` LOC
+- files above `~350` LOC need an explicit extraction note in `PLAN.md`
+- extract in small slices with tests first

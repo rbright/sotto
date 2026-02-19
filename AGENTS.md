@@ -2,128 +2,94 @@
 
 ## Scope
 
-These rules apply to the entire `sotto/` repository.
+Applies to the entire `sotto/` repository.
 
 ## Mission
 
-Ship a production-grade, local-first ASR CLI with:
+Deliver a production-grade, local-first ASR CLI:
 
-- a single Go binary
-- no background daemon
-- strong crash/cleanup guarantees
-- clear modular boundaries for safe refactoring
-- reproducible packaging and CI
+- single Go binary
+- no daemon/background service
+- deterministic toggle/stop/cancel behavior
+- strong cleanup and failure safety
+- reproducible tooling + packaging
 
-## First 60 Seconds (Progressive Disclosure)
+## Fast Start (read in order)
 
-1. Read this file fully.
-2. Read `README.md` for user-facing behavior.
-3. Read `PLAN.md` (current milestones/checklist) and `SESSION.md` (what actually ran).
-4. Run `just --list` to see current task entrypoints.
-5. Open only the component(s) you are changing (map below).
+1. `README.md` (user-facing behavior)
+2. `PLAN.md` (active checklist)
+3. `SESSION.md` (what was actually executed)
+4. `just --list` (task entrypoints)
+5. Only then open the package(s) you need to change
 
----
+## Component Map
 
-## Project Map (What to read by task)
+| Task area | Primary paths |
+| --- | --- |
+| CLI + dispatch | `apps/sotto/internal/cli/`, `apps/sotto/internal/app/` |
+| IPC + single-instance | `apps/sotto/internal/ipc/` |
+| Session/FSM | `apps/sotto/internal/session/`, `apps/sotto/internal/fsm/` |
+| Audio capture | `apps/sotto/internal/audio/` |
+| Riva streaming | `apps/sotto/internal/riva/`, `apps/sotto/internal/pipeline/` |
+| Transcript assembly | `apps/sotto/internal/transcript/` |
+| Clipboard/paste output | `apps/sotto/internal/output/`, `apps/sotto/internal/hypr/` |
+| Indicator + cues | `apps/sotto/internal/indicator/` |
+| Config system | `apps/sotto/internal/config/` |
+| Diagnostics/logging | `apps/sotto/internal/doctor/`, `apps/sotto/internal/logging/` |
+| Tooling/packaging | `justfile`, `.just/`, `flake.nix`, `.github/workflows/` |
+| Proto/codegen | `apps/sotto/proto/third_party/`, `apps/sotto/proto/gen/`, `buf.gen.yaml` |
 
-| Area | Primary paths | Notes |
-| --- | --- | --- |
-| CLI contract + dispatch | `apps/sotto/internal/cli/`, `apps/sotto/internal/app/` | Commands, flags, top-level flow |
-| Session state machine | `apps/sotto/internal/session/`, `apps/sotto/internal/fsm/`, `apps/sotto/internal/ipc/` | Toggle/stop/cancel semantics, single-instance behavior |
-| Audio capture + device selection | `apps/sotto/internal/audio/` | PipeWire/Pulse capture, device fallback/mute handling |
-| Riva streaming ASR | `apps/sotto/internal/riva/`, `apps/sotto/internal/pipeline/` | gRPC stream config, segment assembly inputs |
-| Transcript assembly | `apps/sotto/internal/transcript/` | Whitespace normalization + trailing-space behavior |
-| Output dispatch | `apps/sotto/internal/output/`, `apps/sotto/internal/hypr/` | Clipboard + paste behavior |
-| Indicator + cues | `apps/sotto/internal/indicator/` | Visual notify + audio cue lifecycle |
-| Config grammar/defaults | `apps/sotto/internal/config/` | Any new key must update parser/defaults/tests/docs |
-| Packaging + tooling | `justfile`, `flake.nix`, `.github/workflows/` | CI/tooling changes |
-| Protobuf contracts | `apps/sotto/proto/third_party/`, `proto/gen/go/` | Run codegen when proto inputs change |
-
----
-
-## Engineering Workflow Rules
+## Non-Negotiable Workflow Rules
 
 1. Read target files before editing.
-2. Keep changes aligned to `PLAN.md` milestones; avoid drive-by refactors.
-3. Keep `PLAN.md` checkboxes accurate (only mark executed + verified work).
-4. Log key decisions/trade-offs/blockers/commands in `SESSION.md`.
-5. Prefer additive changes with regression tests.
-6. Never claim runtime integrations (Riva, PipeWire, Hyprland) were verified unless actually exercised.
+2. Keep scope tight to the requested behavior.
+3. Update `PLAN.md` checklist items only when executed + verified.
+4. Log key decisions and commands in `SESSION.md`.
+5. Add or update regression tests for behavior changes when feasible.
+6. Do not claim runtime verification unless it was actually run.
 
-### Design principles (repo-wide)
+## Go Engineering Standards
 
-- Prefer boring, explicit code over clever code.
-- Fail fast at boundaries (config parse, startup checks, I/O preconditions).
-- Keep business/state logic separate from transport/I/O adapters.
-- Use guard clauses to reduce nesting.
-- Keep files top-down readable (public entrypoints first, private helpers below).
+Write canonical, idiomatic Go:
 
-### Dependency + architecture rules
+- `gofmt` clean, straightforward naming, small focused functions
+- explicit constructors and dependency wiring (no hidden globals)
+- `context.Context` first for cancelable/timeout-aware operations
+- wrap errors with actionable context; use `errors.Is` for branching
+- keep interfaces near consumers; avoid broad shared interfaces
+- separate state/policy logic from I/O adapters
+- avoid clever abstractions; prefer explicit control flow
 
-- Prefer manual constructor-based dependency injection.
-- Keep package responsibilities narrow; avoid utility dumping grounds.
-- Do not couple domain/state transitions directly to shell command details.
+## Testing Policy
 
----
-
-## Go Conventions
-
-- Use table-driven tests for branch-heavy logic.
-- Prefer `errors.Is` / wrapped errors with context.
-- Keep I/O timeouts explicit.
-- Use `testing` + `testify` (`require`/`assert`) for expressive assertions when useful.
-- Add focused regression tests for bug fixes whenever feasible.
-
-### Testing boundaries (repo policy)
-
-- Prefer real interfaces/adapters and real resources (temp files, unix sockets, `httptest`, PATH fixtures).
-- Do **not** introduce mocking frameworks or expectation-driven mock suites.
-- Riva runtime/model inference remains a local-manual smoke concern (non-CI); use lightweight protocol/contract tests in CI.
-
-### File size / readability guardrails
-
-- Handwritten files should target `<= 250` LOC where practical.
-- Files above `~350` LOC require extraction-plan notes in `PLAN.md` before refactor work.
-- Exclude generated code from these thresholds: `apps/sotto/vendor/**`, `apps/sotto/proto/gen/**`.
-
----
+- Use `testing` + `testify` (`require`/`assert`) as needed.
+- Prefer real boundaries/resources (temp files, unix sockets, `httptest`, PATH fixtures).
+- Do **not** introduce mocking frameworks.
+- Riva runtime inference remains manual smoke (non-CI).
 
 ## Config Change Contract (Mandatory)
 
-When adding or changing a config key, update all of:
+Any config-key change must update all relevant locations:
 
-1. `apps/sotto/internal/config/types.go`
-2. `apps/sotto/internal/config/defaults.go`
-3. `apps/sotto/internal/config/parser.go`
-4. validation if required (`validate.go`)
+1. `internal/config/types.go`
+2. `internal/config/defaults.go`
+3. `internal/config/parser.go`
+4. `internal/config/validate.go` (if constraints change)
 5. parser/validation tests
-6. `README.md` config example + notes
-7. any deployed default config in consuming repos (when in scope)
+6. `docs/configuration.md` and any README examples
+7. consuming defaults in external config repos when in scope
 
----
+## Required Checks Before Hand-off
 
-## Required Local Checks Before Hand-off
-
-Run and report status for:
+Run and report:
 
 1. `just ci-check`
 2. `nix build 'path:.#sotto'`
 
-If any check is skipped, state exactly what was skipped, why, and the exact command to run.
-
-### Pre-commit Hooks (`prek`)
-
-- Install hooks: `just precommit-install`
-- Run lightweight pre-commit hooks: `just precommit-run`
-- Run heavier pre-push hooks: `just prepush-run`
-
-Use hooks to catch formatting/lint drift early and run full guardrails before pushing.
-
----
+If skipped, state exactly what was skipped, why, and how to run it.
 
 ## Safety
 
-- Never store secrets in repo files.
-- Assume `NGC_API_KEY` and other credentials are external env/secrets only.
+- Never commit secrets (e.g., `NGC_API_KEY`).
 - Avoid destructive shell operations unless explicitly requested.
-- Do not edit files outside `sotto/` unless explicitly requested.
+- Do not edit outside `sotto/` unless explicitly asked.
