@@ -186,3 +186,16 @@ indicator.sound_cancel_file = /tmp/cancel.wav
 		t.Fatalf("unexpected cancel file: %q", cfg.Indicator.SoundCancelFile)
 	}
 }
+
+func TestParseUnterminatedVocabSetReportsStartLine(t *testing.T) {
+	_, _, err := Parse(`
+vocabset internal {
+  boost = 10
+`, Default())
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "line 2") {
+		t.Fatalf("expected vocabset start line in error, got %v", err)
+	}
+}
