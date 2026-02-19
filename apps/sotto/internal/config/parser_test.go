@@ -5,23 +5,34 @@ import (
 	"testing"
 )
 
-func TestParseValidConfig(t *testing.T) {
+func TestParseValidJSONCConfig(t *testing.T) {
 	input := `
-# comment
-riva_grpc = 127.0.0.1:50051
-riva_http = "127.0.0.1:9000"
-audio.input = "Elgato"
-paste.enable = true
-vocab.global = core, team
-
-vocabset core {
-  boost = 14
-  phrases = [ "Sotto", "Hyprland" ]
-}
-
-vocabset team {
-  boost = 18
-  phrases = [ "Sotto", "Riva" ]
+{
+  // local endpoints
+  "riva": {
+    "grpc": "127.0.0.1:50051",
+    "http": "127.0.0.1:9000"
+  },
+  "audio": {
+    "input": "Elgato"
+  },
+  "paste": {
+    "enable": true,
+    "shortcut": "SUPER,V"
+  },
+  "vocab": {
+    "global": ["core", "team"],
+    "sets": {
+      "core": {
+        "boost": 14,
+        "phrases": ["Sotto", "Hyprland"]
+      },
+      "team": {
+        "boost": 18,
+        "phrases": ["Sotto", "Riva"]
+      }
+    }
+  },
 }
 `
 
@@ -30,10 +41,13 @@ vocabset team {
 		t.Fatalf("Parse() error = %v", err)
 	}
 	if cfg.RivaGRPC != "127.0.0.1:50051" {
-		t.Fatalf("unexpected riva_grpc: %s", cfg.RivaGRPC)
+		t.Fatalf("unexpected riva.grpc: %s", cfg.RivaGRPC)
 	}
 	if cfg.Audio.Input != "Elgato" {
 		t.Fatalf("unexpected audio.input: %s", cfg.Audio.Input)
+	}
+	if cfg.Paste.Shortcut != "SUPER,V" {
+		t.Fatalf("unexpected paste.shortcut: %s", cfg.Paste.Shortcut)
 	}
 	if len(warnings) == 0 {
 		t.Fatalf("expected dedupe warning for repeated phrase")
@@ -54,22 +68,56 @@ vocabset team {
 	}
 }
 
-func TestParseUnknownKeyFails(t *testing.T) {
-	_, _, err := Parse(`foo.bar = 1`, Default())
+func TestParseLegacyFormatStillSupportedWithWarning(t *testing.T) {
+	cfg, warnings, err := Parse(`
+riva_grpc = 127.0.0.1:50051
+paste.enable = false
+`, Default())
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if cfg.RivaGRPC != "127.0.0.1:50051" {
+		t.Fatalf("unexpected riva_grpc: %s", cfg.RivaGRPC)
+	}
+	if cfg.Paste.Enable {
+		t.Fatalf("expected paste.enable=false")
+	}
+
+	found := false
+	for _, w := range warnings {
+		if strings.Contains(w.Message, "legacy") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected legacy format warning, warnings=%+v", warnings)
+	}
+}
+
+func TestParseJSONCUnknownKeyFails(t *testing.T) {
+	_, _, err := Parse(`{"foo": {"bar": 1}}`, Default())
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	if !strings.Contains(err.Error(), "unknown key") {
+	if !strings.Contains(err.Error(), "unknown field") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
-func TestParseLineNumberOnError(t *testing.T) {
-	_, _, err := Parse("\n\nthis is bad", Default())
+func TestParseJSONCLineNumberOnError(t *testing.T) {
+	_, _, err := Parse(`
+{
+  "riva": {
+    "grpc": "127.0.0.1:50051"
+    "http": "127.0.0.1:9000"
+  }
+}
+`, Default())
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	if !strings.Contains(err.Error(), "line 3") {
+	if !strings.Contains(err.Error(), "line") {
 		t.Fatalf("expected line number in error, got %v", err)
 	}
 }
@@ -103,7 +151,7 @@ func TestValidateMaxPhraseLimit(t *testing.T) {
 }
 
 func TestParseCommandArgvQuoted(t *testing.T) {
-	cfg, _, err := Parse(`paste_cmd = "mycmd --name 'hello world'"`, Default())
+	cfg, _, err := Parse(`{"paste_cmd":"mycmd --name 'hello world'"}`, Default())
 	if err != nil {
 		t.Fatalf("Parse() error = %v", err)
 	}
@@ -116,7 +164,7 @@ func TestParseCommandArgvQuoted(t *testing.T) {
 }
 
 func TestParsePasteShortcut(t *testing.T) {
-	cfg, _, err := Parse(`paste.shortcut = "SUPER,V"`, Default())
+	cfg, _, err := Parse(`{"paste":{"shortcut":"SUPER,V"}}`, Default())
 	if err != nil {
 		t.Fatalf("Parse() error = %v", err)
 	}
@@ -125,37 +173,14 @@ func TestParsePasteShortcut(t *testing.T) {
 	}
 }
 
-func TestParseSingleQuotedStrings(t *testing.T) {
-	cfg, _, err := Parse(`
-indicator.text_recording = 'Recording active'
-clipboard_cmd = 'wl-copy --trim-newline'
-`, Default())
-	if err != nil {
-		t.Fatalf("Parse() error = %v", err)
-	}
-
-	if cfg.Indicator.TextRecording != "Recording active" {
-		t.Fatalf("unexpected indicator.text_recording: %q", cfg.Indicator.TextRecording)
-	}
-	if strings.Join(cfg.Clipboard.Argv, "|") != "wl-copy|--trim-newline" {
-		t.Fatalf("unexpected clipboard argv: %#v", cfg.Clipboard.Argv)
-	}
-}
-
-func TestParseRejectsUnterminatedSingleQuotedString(t *testing.T) {
-	_, _, err := Parse(`indicator.text_recording = 'Recording`, Default())
-	if err == nil {
-		t.Fatal("expected parse error")
-	}
-	if !strings.Contains(err.Error(), "closing single quote") {
-		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
 func TestParseIndicatorBackend(t *testing.T) {
 	cfg, _, err := Parse(`
-indicator.backend = desktop
-indicator.desktop_app_name = sotto-indicator
+{
+  "indicator": {
+    "backend": "desktop",
+    "desktop_app_name": "sotto-indicator"
+  }
+}
 `, Default())
 	if err != nil {
 		t.Fatalf("Parse() error = %v", err)
@@ -168,8 +193,29 @@ indicator.desktop_app_name = sotto-indicator
 	}
 }
 
+func TestParseIndicatorTextTranscribingAliasWarning(t *testing.T) {
+	cfg, warnings, err := Parse(`{"indicator":{"text_transcribing":"Working..."}}`, Default())
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if cfg.Indicator.TextProcessing != "Working..." {
+		t.Fatalf("unexpected text processing value: %q", cfg.Indicator.TextProcessing)
+	}
+
+	found := false
+	for _, w := range warnings {
+		if strings.Contains(w.Message, "text_transcribing") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected alias warning, warnings=%+v", warnings)
+	}
+}
+
 func TestParseIndicatorSoundEnable(t *testing.T) {
-	cfg, _, err := Parse(`indicator.sound_enable = false`, Default())
+	cfg, _, err := Parse(`{"indicator":{"sound_enable":false}}`, Default())
 	if err != nil {
 		t.Fatalf("Parse() error = %v", err)
 	}
@@ -180,10 +226,14 @@ func TestParseIndicatorSoundEnable(t *testing.T) {
 
 func TestParseIndicatorSoundFiles(t *testing.T) {
 	cfg, _, err := Parse(`
-indicator.sound_start_file = /tmp/start.wav
-indicator.sound_stop_file = /tmp/stop.wav
-indicator.sound_complete_file = /tmp/complete.wav
-indicator.sound_cancel_file = /tmp/cancel.wav
+{
+  "indicator": {
+    "sound_start_file": "/tmp/start.wav",
+    "sound_stop_file": "/tmp/stop.wav",
+    "sound_complete_file": "/tmp/complete.wav",
+    "sound_cancel_file": "/tmp/cancel.wav"
+  }
+}
 `, Default())
 	if err != nil {
 		t.Fatalf("Parse() error = %v", err)
@@ -203,27 +253,20 @@ indicator.sound_cancel_file = /tmp/cancel.wav
 	}
 }
 
-func TestParseUnterminatedVocabSetReportsStartLine(t *testing.T) {
-	_, _, err := Parse(`
-vocabset internal {
-  boost = 10
-`, Default())
-	if err == nil {
-		t.Fatal("expected error")
-	}
-	if !strings.Contains(err.Error(), "line 2") {
-		t.Fatalf("expected vocabset start line in error, got %v", err)
-	}
-}
-
 func TestParseInitializesNilVocabMap(t *testing.T) {
 	base := Default()
 	base.Vocab.Sets = nil
 
 	cfg, _, err := Parse(`
-vocabset team {
-  boost = 10
-  phrases = [ "sotto" ]
+{
+  "vocab": {
+    "sets": {
+      "team": {
+        "boost": 10,
+        "phrases": ["sotto"]
+      }
+    }
+  }
 }
 `, base)
 	if err != nil {

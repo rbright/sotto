@@ -5,50 +5,62 @@
 `sotto` loads configuration in this order:
 
 1. `--config <path>`
-2. `$XDG_CONFIG_HOME/sotto/config.conf`
-3. `~/.config/sotto/config.conf`
+2. `$XDG_CONFIG_HOME/sotto/config.jsonc`
+3. `~/.config/sotto/config.jsonc`
 
-If no config file exists, defaults are used.
+If no `.jsonc` file exists at the default path, sotto falls back to legacy `config.conf` for compatibility.
 
-## Grammar
+## Format
 
-- `key = value`
-- comments start with `#`
-- string values may be quoted (`"..."` or `'...'`) or unquoted
-- vocab blocks:
+Preferred format is **JSONC**:
 
-```conf
-vocabset <name> {
-  boost = <float>
-  phrases = [ "phrase one", "phrase two" ]
-}
-```
+- JSON object root (`{ ... }`)
+- line comments (`// ...`)
+- block comments (`/* ... */`)
+- trailing commas are accepted
 
-Unknown keys are hard errors.
+Unknown fields are hard errors.
+
+## Schema overview
+
+Top-level object keys:
+
+- `riva`
+- `audio`
+- `paste`
+- `asr`
+- `transcript`
+- `indicator`
+- `clipboard_cmd`
+- `paste_cmd`
+- `vocab`
+- `debug`
 
 ## Keys and defaults
 
-### Core endpoints and audio
+### `riva`
 
 | Key | Default | Notes |
 | --- | --- | --- |
-| `riva_grpc` | `127.0.0.1:50051` | gRPC ASR endpoint |
-| `riva_http` | `127.0.0.1:9000` | HTTP endpoint for readiness checks |
-| `riva_health_path` | `/v1/health/ready` | must start with `/` |
+| `riva.grpc` | `127.0.0.1:50051` | gRPC ASR endpoint |
+| `riva.http` | `127.0.0.1:9000` | HTTP endpoint for readiness checks |
+| `riva.health_path` | `/v1/health/ready` | must start with `/` |
+
+### `audio`
+
+| Key | Default | Notes |
+| --- | --- | --- |
 | `audio.input` | `default` | preferred device match |
 | `audio.fallback` | `default` | fallback device match |
 
-### Output and transcript
+### `paste`
 
 | Key | Default | Notes |
 | --- | --- | --- |
 | `paste.enable` | `true` | run paste adapter after clipboard commit |
 | `paste.shortcut` | `CTRL,V` | used by default Hyprland paste path when `paste_cmd` unset |
-| `clipboard_cmd` | `wl-copy --trim-newline` | command argv; no shell execution |
-| `paste_cmd` | empty | optional explicit paste command override |
-| `transcript.trailing_space` | `true` | append space after assembled transcript |
 
-### ASR
+### `asr`
 
 | Key | Default | Notes |
 | --- | --- | --- |
@@ -56,7 +68,13 @@ Unknown keys are hard errors.
 | `asr.language_code` | `en-US` | language code |
 | `asr.model` | empty | optional explicit model |
 
-### Indicator + cues
+### `transcript`
+
+| Key | Default | Notes |
+| --- | --- | --- |
+| `transcript.trailing_space` | `true` | append space after assembled transcript |
+
+### `indicator`
 
 | Key | Default | Notes |
 | --- | --- | --- |
@@ -75,12 +93,30 @@ Unknown keys are hard errors.
 | `indicator.text_error` | `Speech recognition error` | error label |
 | `indicator.error_timeout_ms` | `1600` | `>= 0` |
 
-### Vocabulary and debug
+### command keys
 
 | Key | Default | Notes |
 | --- | --- | --- |
-| `vocab.global` | empty | comma-separated enabled vocabsets |
+| `clipboard_cmd` | `wl-copy --trim-newline` | command argv; no shell execution |
+| `paste_cmd` | empty | optional explicit paste command override |
+
+### `vocab`
+
+| Key | Default | Notes |
+| --- | --- | --- |
+| `vocab.global` | empty | enabled vocab set names (array preferred; comma string also accepted) |
 | `vocab.max_phrases` | `1024` | hard cap after dedupe |
+| `vocab.sets` | empty map | map of named vocab sets |
+
+Each vocab set object supports:
+
+- `boost` (number)
+- `phrases` (string array)
+
+### `debug`
+
+| Key | Default | Notes |
+| --- | --- | --- |
 | `debug.audio_dump` | `false` | write debug WAV artifacts |
 | `debug.grpc_dump` | `false` | write raw ASR response JSON |
 
@@ -92,47 +128,74 @@ anchor=top-center
 default-timeout=0
 ```
 
-## Example config
+## Example (`config.jsonc`)
 
-```conf
-riva_grpc = 127.0.0.1:50051
-riva_http = 127.0.0.1:9000
-riva_health_path = /v1/health/ready
+```jsonc
+{
+  "riva": {
+    "grpc": "127.0.0.1:50051",
+    "http": "127.0.0.1:9000",
+    "health_path": "/v1/health/ready"
+  },
 
-audio.input = default
-audio.fallback = default
+  "audio": {
+    "input": "default",
+    "fallback": "default"
+  },
 
-paste.enable = true
-paste.shortcut = CTRL,V
-clipboard_cmd = wl-copy --trim-newline
-paste_cmd = ""
+  "paste": {
+    "enable": true,
+    "shortcut": "CTRL,V"
+  },
 
-asr.automatic_punctuation = true
-asr.language_code = en-US
-asr.model =
-transcript.trailing_space = true
+  "clipboard_cmd": "wl-copy --trim-newline",
+  "paste_cmd": "",
 
-indicator.enable = true
-indicator.backend = hypr
-indicator.desktop_app_name = sotto-indicator
-indicator.sound_enable = true
-indicator.sound_start_file =
-indicator.sound_stop_file =
-indicator.sound_complete_file =
-indicator.sound_cancel_file =
-indicator.text_recording = Recording…
-indicator.text_processing = Transcribing…
-indicator.text_error = Speech recognition error
-indicator.error_timeout_ms = 1600
+  "asr": {
+    "automatic_punctuation": true,
+    "language_code": "en-US",
+    "model": ""
+  },
 
-vocab.global = internal
-vocab.max_phrases = 1024
+  "transcript": {
+    "trailing_space": true
+  },
 
-vocabset internal {
-  boost = 14
-  phrases = [ "Parakeet", "Riva", "local ASR" ]
+  "indicator": {
+    "enable": true,
+    "backend": "hypr",
+    "desktop_app_name": "sotto-indicator",
+    "sound_enable": true,
+    "sound_start_file": "",
+    "sound_stop_file": "",
+    "sound_complete_file": "",
+    "sound_cancel_file": "",
+    "text_recording": "Recording…",
+    "text_processing": "Transcribing…",
+    "text_error": "Speech recognition error",
+    "error_timeout_ms": 1600
+  },
+
+  "vocab": {
+    "global": ["internal"],
+    "max_phrases": 1024,
+    "sets": {
+      "internal": {
+        "boost": 14,
+        "phrases": ["Parakeet", "Riva", "local ASR"]
+      }
+    }
+  },
+
+  "debug": {
+    "audio_dump": false,
+    "grpc_dump": false
+  }
 }
-
-debug.audio_dump = false
-debug.grpc_dump = false
 ```
+
+## Legacy format compatibility
+
+Legacy `key = value` config files are still accepted to avoid breaking deployed setups.
+
+When a legacy file is parsed, sotto emits a warning so you can migrate to JSONC.

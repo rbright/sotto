@@ -9,7 +9,7 @@ import (
 )
 
 func TestResolvePathPrecedence(t *testing.T) {
-	explicit := "/tmp/custom.conf"
+	explicit := "/tmp/custom.jsonc"
 	resolved, err := ResolvePath(explicit)
 	require.NoError(t, err)
 	require.Equal(t, explicit, resolved)
@@ -18,18 +18,18 @@ func TestResolvePathPrecedence(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", xdg)
 	resolved, err = ResolvePath("")
 	require.NoError(t, err)
-	require.Equal(t, filepath.Join(xdg, "sotto", "config.conf"), resolved)
+	require.Equal(t, filepath.Join(xdg, "sotto", "config.jsonc"), resolved)
 
 	t.Setenv("XDG_CONFIG_HOME", "")
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	resolved, err = ResolvePath("")
 	require.NoError(t, err)
-	require.Equal(t, filepath.Join(home, ".config", "sotto", "config.conf"), resolved)
+	require.Equal(t, filepath.Join(home, ".config", "sotto", "config.jsonc"), resolved)
 }
 
 func TestLoadMissingConfigUsesDefaultsWithWarning(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "missing.conf")
+	path := filepath.Join(t.TempDir(), "missing.jsonc")
 
 	loaded, err := Load(path)
 	require.NoError(t, err)
@@ -40,14 +40,22 @@ func TestLoadMissingConfigUsesDefaultsWithWarning(t *testing.T) {
 	require.Contains(t, loaded.Warnings[0].Message, "not found")
 }
 
-func TestLoadExistingConfigParsesAndValidates(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "config.conf")
+func TestLoadExistingJSONCParsesAndValidates(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.jsonc")
 	contents := `
-riva_grpc = 127.0.0.1:50051
-riva_http = 127.0.0.1:9000
-audio.input = default
-audio.fallback = default
-paste.enable = false
+{
+  "riva": {
+    "grpc": "127.0.0.1:50051",
+    "http": "127.0.0.1:9000"
+  },
+  "audio": {
+    "input": "default",
+    "fallback": "default"
+  },
+  "paste": {
+    "enable": false
+  }
+}
 `
 	require.NoError(t, os.WriteFile(path, []byte(contents), 0o600))
 
@@ -60,9 +68,26 @@ paste.enable = false
 	require.False(t, loaded.Config.Paste.Enable)
 }
 
+func TestLoadImplicitPathFallsBackToLegacyConfigConf(t *testing.T) {
+	xdg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+
+	legacyPath := filepath.Join(xdg, "sotto", "config.conf")
+	require.NoError(t, os.MkdirAll(filepath.Dir(legacyPath), 0o700))
+	require.NoError(t, os.WriteFile(legacyPath, []byte("paste.enable = false\n"), 0o600))
+
+	loaded, err := Load("")
+	require.NoError(t, err)
+	require.True(t, loaded.Exists)
+	require.Equal(t, legacyPath, loaded.Path)
+	require.False(t, loaded.Config.Paste.Enable)
+	require.NotEmpty(t, loaded.Warnings)
+	require.Contains(t, loaded.Warnings[0].Message, "legacy config path")
+}
+
 func TestLoadParseErrorIncludesPath(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "broken.conf")
-	require.NoError(t, os.WriteFile(path, []byte("bad line"), 0o600))
+	path := filepath.Join(t.TempDir(), "broken.jsonc")
+	require.NoError(t, os.WriteFile(path, []byte("{ not-json }"), 0o600))
 
 	_, err := Load(path)
 	require.Error(t, err)
