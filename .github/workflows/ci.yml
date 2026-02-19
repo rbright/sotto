@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v27
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.work
+
+      - name: Install just
+        uses: taiki-e/install-action@just
+
+      - name: Nix lint
+        run: just lint-nix
+
+      - name: Pre-commit hooks
+        run: just precommit-run
+
+      - name: Guardrails
+        run: just ci-check
+
+      - name: Nix build package
+        run: nix build 'path:.#sotto'
+
+      - name: Nix run --help smoke
+        run: nix run 'path:.#sotto' -- --help

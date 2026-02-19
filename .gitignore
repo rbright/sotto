@@ -1,0 +1,27 @@
+# Build artifacts
+/bin/
+/dist/
+/result
+/result-*
+/apps/sotto/sotto
+/apps/sotto/vendor/
+
+# Go
+**/*.test
+**/*.out
+coverage.out
+
+# Editor/system
+.DS_Store
+.direnv/
+.env
+.env.*
+
+# Runtime artifacts
+*.log
+*.sock
+
+# Local planning/session notes
+.pi/
+PLAN.md
+SESSION.md
