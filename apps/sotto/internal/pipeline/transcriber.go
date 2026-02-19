@@ -125,6 +125,7 @@ func (t *Transcriber) StopAndTranscribe(ctx context.Context) (session.StopResult
 	if !started || capture == nil || stream == nil {
 		return session.StopResult{}, session.ErrPipelineUnavailable
 	}
+	defer t.resetRuntimeState()
 
 	_ = capture.Stop()
 
@@ -176,6 +177,7 @@ func (t *Transcriber) Cancel(_ context.Context) error {
 	capture := t.capture
 	stream := t.stream
 	t.mu.Unlock()
+	defer t.resetRuntimeState()
 
 	if capture != nil {
 		_ = capture.Stop()
@@ -186,6 +188,16 @@ func (t *Transcriber) Cancel(_ context.Context) error {
 	}
 	t.closeDebugArtifacts()
 	return nil
+}
+
+// resetRuntimeState clears one-shot runtime resources so the transcriber can be reused.
+func (t *Transcriber) resetRuntimeState() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.started = false
+	t.capture = nil
+	t.stream = nil
+	t.sendErrCh = nil
 }
 
 // sendLoop forwards capture chunks to Riva and reports the first send failure.
