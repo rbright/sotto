@@ -30,7 +30,7 @@ test-integration:
   go test -tags=integration ./apps/sotto/internal/audio -run Integration
 
 generate:
-  "{{bin_dir}}/buf" generate apps/sotto/proto/third_party --template buf.gen.yaml
+  PATH="{{bin_dir}}:$PATH" "{{bin_dir}}/buf" generate apps/sotto/proto/third_party --template buf.gen.yaml
 
 ci:
   just fmt
