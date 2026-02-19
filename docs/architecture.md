@@ -63,6 +63,28 @@ sequenceDiagram
     S->>O: commit(transcript)
 ```
 
+## Session state machine (`internal/fsm`)
+
+```mermaid
+stateDiagram-v2
+    [*] --> idle
+
+    idle --> recording: start
+    recording --> transcribing: stop
+    recording --> idle: cancel
+    transcribing --> idle: transcribed
+
+    idle --> error: fail
+    recording --> error: fail
+    transcribing --> error: fail
+    error --> idle: reset
+```
+
+Notes:
+
+- `fail` is a global event in code: it forces transition to `error` from any active state.
+- Any transition not listed above is rejected by `fsm.Transition` as an invalid transition error.
+
 ## Platform coupling (today)
 
 Current production path is Wayland + Hyprland:
