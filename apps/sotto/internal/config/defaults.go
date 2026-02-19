@@ -1,5 +1,6 @@
 package config
 
+// Default returns the canonical runtime configuration used when no file is present.
 func Default() Config {
 	clipboard := "wl-copy --trim-newline"
 

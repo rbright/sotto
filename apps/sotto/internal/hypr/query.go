@@ -8,6 +8,7 @@ import (
 	"strings"
 )
 
+// ActiveWindow contains the fields needed for paste dispatch targeting.
 type ActiveWindow struct {
 	Address      string `json:"address"`
 	Class        string `json:"class"`
@@ -19,6 +20,7 @@ type monitor struct {
 	Focused bool   `json:"focused"`
 }
 
+// QueryActiveWindow fetches and validates the active-window contract from hyprctl.
 func QueryActiveWindow(ctx context.Context) (ActiveWindow, error) {
 	output, err := runHyprctlJSON(ctx, "activewindow")
 	if err != nil {
@@ -38,6 +40,7 @@ func QueryActiveWindow(ctx context.Context) (ActiveWindow, error) {
 	return window, nil
 }
 
+// QueryFocusedMonitor returns the focused monitor name (or the first monitor fallback).
 func QueryFocusedMonitor(ctx context.Context) (string, error) {
 	output, err := runHyprctlJSON(ctx, "monitors")
 	if err != nil {
@@ -59,6 +62,7 @@ func QueryFocusedMonitor(ctx context.Context) (string, error) {
 	return strings.TrimSpace(monitors[0].Name), nil
 }
 
+// SendShortcut sends a literal hyprctl sendshortcut payload.
 func SendShortcut(ctx context.Context, shortcut string) error {
 	shortcut = strings.TrimSpace(shortcut)
 	if shortcut == "" {
@@ -67,6 +71,7 @@ func SendShortcut(ctx context.Context, shortcut string) error {
 	return runHyprctl(ctx, "--quiet", "dispatch", "sendshortcut", shortcut)
 }
 
+// Notify sends a Hyprland notification payload.
 func Notify(ctx context.Context, icon int, timeoutMS int, color string, text string) error {
 	if strings.TrimSpace(color) == "" {
 		color = "rgb(89b4fa)"
@@ -83,10 +88,12 @@ func Notify(ctx context.Context, icon int, timeoutMS int, color string, text str
 	)
 }
 
+// DismissNotify dismisses active Hyprland notifications.
 func DismissNotify(ctx context.Context) error {
 	return runHyprctl(ctx, "--quiet", "dispatch", "dismissnotify")
 }
 
+// runHyprctlJSON executes a JSON-returning hyprctl subcommand.
 func runHyprctlJSON(ctx context.Context, target string) ([]byte, error) {
 	output, err := runHyprctlOutput(ctx, "-j", target)
 	if err != nil {

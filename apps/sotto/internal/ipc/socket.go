@@ -11,8 +11,10 @@ import (
 	"time"
 )
 
+// ErrAlreadyRunning indicates a responsive owner already holds the runtime socket.
 var ErrAlreadyRunning = errors.New("sotto session already running")
 
+// RuntimeSocketPath returns the owner socket path derived from XDG_RUNTIME_DIR.
 func RuntimeSocketPath() (string, error) {
 	runtimeDir := strings.TrimSpace(os.Getenv("XDG_RUNTIME_DIR"))
 	if runtimeDir == "" {
@@ -21,6 +23,7 @@ func RuntimeSocketPath() (string, error) {
 	return filepath.Join(runtimeDir, "sotto.sock"), nil
 }
 
+// Acquire attempts to become the owner listener, cleaning stale sockets when safe.
 func Acquire(
 	ctx context.Context,
 	path string,
@@ -71,6 +74,7 @@ func Acquire(
 	return nil, fmt.Errorf("failed to acquire socket %s after %d retries", path, retries)
 }
 
+// isAddrInUse identifies listener errors caused by an existing socket path.
 func isAddrInUse(err error) bool {
 	if err == nil {
 		return false

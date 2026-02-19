@@ -18,6 +18,7 @@ import (
 	"github.com/rbright/sotto/internal/transcript"
 )
 
+// Transcriber owns one end-to-end capture -> ASR -> transcript pipeline instance.
 type Transcriber struct {
 	cfg    config.Config
 	logger *slog.Logger
@@ -34,10 +35,12 @@ type Transcriber struct {
 	debugGRPCFile *os.File
 }
 
+// NewTranscriber constructs a pipeline transcriber from runtime config.
 func NewTranscriber(cfg config.Config, logger *slog.Logger) *Transcriber {
 	return &Transcriber{cfg: cfg, logger: logger}
 }
 
+// Start resolves device selection, opens Riva stream, and starts audio capture.
 func (t *Transcriber) Start(ctx context.Context) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -108,6 +111,7 @@ func (t *Transcriber) Start(ctx context.Context) error {
 	return nil
 }
 
+// StopAndTranscribe stops capture, closes stream, and assembles the transcript.
 func (t *Transcriber) StopAndTranscribe(ctx context.Context) (session.StopResult, error) {
 	t.mu.Lock()
 	started := t.started
@@ -165,6 +169,7 @@ func (t *Transcriber) StopAndTranscribe(ctx context.Context) (session.StopResult
 	}, nil
 }
 
+// Cancel stops capture and stream immediately without transcript commit.
 func (t *Transcriber) Cancel(_ context.Context) error {
 	t.mu.Lock()
 	capture := t.capture
@@ -182,6 +187,7 @@ func (t *Transcriber) Cancel(_ context.Context) error {
 	return nil
 }
 
+// sendLoop forwards capture chunks to Riva and reports the first send failure.
 func (t *Transcriber) sendLoop() {
 	t.mu.Lock()
 	capture := t.capture
@@ -220,6 +226,7 @@ func (t *Transcriber) sendLoop() {
 	}
 }
 
+// describeDevice formats device metadata for logs/session results.
 func describeDevice(device audio.Device) string {
 	description := strings.TrimSpace(device.Description)
 	id := strings.TrimSpace(device.ID)
@@ -232,6 +239,7 @@ func describeDevice(device audio.Device) string {
 	return fmt.Sprintf("%s (%s)", description, id)
 }
 
+// logWarn emits warning-level logs when logger is configured.
 func (t *Transcriber) logWarn(message string) {
 	if t.logger == nil {
 		return
@@ -239,6 +247,7 @@ func (t *Transcriber) logWarn(message string) {
 	t.logger.Warn(message)
 }
 
+// createDebugFile creates timestamped debug artifacts under state/sotto/debug.
 func createDebugFile(prefix string, extension string) (*os.File, error) {
 	stateDir, err := resolveStateDir()
 	if err != nil {
@@ -258,6 +267,7 @@ func createDebugFile(prefix string, extension string) (*os.File, error) {
 	return file, nil
 }
 
+// resolveStateDir returns XDG_STATE_HOME fallback path for debug artifacts.
 func resolveStateDir() (string, error) {
 	if xdg := strings.TrimSpace(os.Getenv("XDG_STATE_HOME")); xdg != "" {
 		return xdg, nil
@@ -269,6 +279,7 @@ func resolveStateDir() (string, error) {
 	return filepath.Join(home, ".local", "state"), nil
 }
 
+// closeDebugArtifacts closes open debug sinks.
 func (t *Transcriber) closeDebugArtifacts() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -278,6 +289,7 @@ func (t *Transcriber) closeDebugArtifacts() {
 	}
 }
 
+// writeDebugAudio writes raw PCM to WAV when debug.audio_dump is enabled.
 func (t *Transcriber) writeDebugAudio(rawPCM []byte) {
 	if !t.cfg.Debug.EnableAudioDump || len(rawPCM) == 0 {
 		return
@@ -295,6 +307,7 @@ func (t *Transcriber) writeDebugAudio(rawPCM []byte) {
 	}
 }
 
+// writePCM16WAV writes raw little-endian PCM bytes with a minimal WAV header.
 func writePCM16WAV(file *os.File, pcm []byte, sampleRate int, channels int) error {
 	if channels <= 0 {
 		channels = 1

@@ -14,6 +14,7 @@ import (
 	"github.com/rbright/sotto/internal/config"
 )
 
+// cueKind identifies each cue event used by the session lifecycle.
 type cueKind int
 
 const (
@@ -25,6 +26,7 @@ const (
 
 const cueSampleRate = 16000
 
+// toneSpec describes one synthesized cue tone segment.
 type toneSpec struct {
 	frequencyHz float64
 	duration    time.Duration
@@ -49,6 +51,7 @@ var (
 	})
 )
 
+// emitCue plays a configured WAV file when present, otherwise falls back to synthesis.
 func emitCue(kind cueKind, cfg config.IndicatorConfig) error {
 	if path := cuePath(kind, cfg); path != "" {
 		if err := playCueFile(path); err == nil {
@@ -64,6 +67,7 @@ func emitCue(kind cueKind, cfg config.IndicatorConfig) error {
 	return playSynthCue(samples)
 }
 
+// cuePath resolves the configured WAV path for one cue kind.
 func cuePath(kind cueKind, cfg config.IndicatorConfig) string {
 	var raw string
 	switch kind {
@@ -81,6 +85,7 @@ func cuePath(kind cueKind, cfg config.IndicatorConfig) string {
 	return expandUserPath(raw)
 }
 
+// expandUserPath expands `~` prefixes for user-provided cue file paths.
 func expandUserPath(raw string) string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -103,6 +108,7 @@ func expandUserPath(raw string) string {
 	return filepath.Join(home, strings.TrimPrefix(raw, "~/"))
 }
 
+// playCueFile plays a configured WAV file through pw-play.
 func playCueFile(path string) error {
 	if _, err := os.Stat(path); err != nil {
 		return fmt.Errorf("stat cue file %q: %w", path, err)
@@ -118,6 +124,7 @@ func playCueFile(path string) error {
 	return nil
 }
 
+// playSynthCue streams synthesized PCM samples through Pulse playback.
 func playSynthCue(samples []int16) error {
 	client, err := pulse.NewClient(
 		pulse.ClientApplicationName("sotto"),
@@ -163,6 +170,7 @@ func playSynthCue(samples []int16) error {
 	return nil
 }
 
+// cueSamples returns the synthesized PCM table for one cue kind.
 func cueSamples(kind cueKind) []int16 {
 	switch kind {
 	case cueStart:
@@ -178,6 +186,7 @@ func cueSamples(kind cueKind) []int16 {
 	}
 }
 
+// synthesizeCue concatenates one or more tone segments with short silence gaps.
 func synthesizeCue(parts []toneSpec) []int16 {
 	if len(parts) == 0 {
 		return nil
@@ -202,6 +211,7 @@ func synthesizeCue(parts []toneSpec) []int16 {
 	return pcm
 }
 
+// synthesizeTone creates one windowed sine-wave segment.
 func synthesizeTone(spec toneSpec) []int16 {
 	n := samplesForDuration(spec.duration)
 	if n <= 0 || spec.frequencyHz <= 0 || spec.volume <= 0 {
@@ -238,6 +248,7 @@ func synthesizeTone(spec toneSpec) []int16 {
 	return pcm
 }
 
+// samplesForDuration converts a time duration into cue sample count.
 func samplesForDuration(d time.Duration) int {
 	if d <= 0 {
 		return 0

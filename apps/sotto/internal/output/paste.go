@@ -9,6 +9,7 @@ import (
 	"github.com/rbright/sotto/internal/hypr"
 )
 
+// defaultPaste dispatches a sendshortcut payload to the current active window.
 func defaultPaste(ctx context.Context, shortcut string) error {
 	window, err := activeWindowWithRetry(ctx, 5, 10*time.Millisecond)
 	if err != nil {
@@ -22,6 +23,7 @@ func defaultPaste(ctx context.Context, shortcut string) error {
 	return hypr.SendShortcut(ctx, payload)
 }
 
+// buildPasteShortcut renders `<shortcut>,address:<window>` payload format.
 func buildPasteShortcut(shortcut string, windowAddress string) (string, error) {
 	shortcut = strings.TrimSpace(shortcut)
 	if shortcut == "" {
@@ -36,6 +38,7 @@ func buildPasteShortcut(shortcut string, windowAddress string) (string, error) {
 	return fmt.Sprintf("%s,address:%s", shortcut, address), nil
 }
 
+// activeWindowWithRetry retries active-window lookup within short bounded delays.
 func activeWindowWithRetry(ctx context.Context, attempts int, delay time.Duration) (hypr.ActiveWindow, error) {
 	if attempts <= 0 {
 		attempts = 1

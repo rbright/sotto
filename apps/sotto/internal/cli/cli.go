@@ -6,6 +6,7 @@ import (
 	"strings"
 )
 
+// Command is the user-facing subcommand vocabulary for the CLI.
 type Command string
 
 const (
@@ -30,12 +31,14 @@ var validCommands = map[Command]struct{}{
 	CommandHelp:    {},
 }
 
+// Parsed contains normalized argument parsing output.
 type Parsed struct {
 	Command    Command
 	ConfigPath string
 	ShowHelp   bool
 }
 
+// Parse converts argv into a Parsed command contract with validation.
 func Parse(args []string) (Parsed, error) {
 	parsed := Parsed{Command: CommandHelp, ShowHelp: true}
 
@@ -76,6 +79,7 @@ func Parse(args []string) (Parsed, error) {
 	return parsed, nil
 }
 
+// HelpText returns full usage text shown for --help and parse errors.
 func HelpText(binaryName string) string {
 	return fmt.Sprintf(`Usage:
   %[1]s [--config PATH] <command>

@@ -7,11 +7,13 @@ import (
 	"strings"
 )
 
+// parseState tracks block-level parser context while scanning lines.
 type parseState struct {
 	inVocabSet        *VocabSet
 	vocabSetStartLine int
 }
 
+// Parse applies line-oriented config grammar over a default baseline.
 func Parse(content string, base Config) (Config, []Warning, error) {
 	cfg := base
 	warnings := make([]Warning, 0)
@@ -92,6 +94,7 @@ func Parse(content string, base Config) (Config, []Warning, error) {
 	return cfg, warnings, nil
 }
 
+// parseAssignment parses a single `key = value` expression.
 func parseAssignment(line string) (string, string, error) {
 	idx := strings.Index(line, "=")
 	if idx < 0 {
@@ -108,6 +111,7 @@ func parseAssignment(line string) (string, string, error) {
 	return key, value, nil
 }
 
+// parseVocabSetHeader parses `vocabset <name> {` headers.
 func parseVocabSetHeader(line string) (VocabSet, error) {
 	if !strings.HasSuffix(line, "{") {
 		return VocabSet{}, fmt.Errorf("vocabset declaration must end with '{'")
@@ -124,6 +128,7 @@ func parseVocabSetHeader(line string) (VocabSet, error) {
 	return VocabSet{Name: parts[1]}, nil
 }
 
+// applyVocabSetKey applies an assignment within an active vocabset block.
 func applyVocabSetKey(set *VocabSet, key, value string) error {
 	switch key {
 	case "boost":
@@ -144,6 +149,7 @@ func applyVocabSetKey(set *VocabSet, key, value string) error {
 	return nil
 }
 
+// applyRootKey applies one top-level key/value assignment into cfg.
 func applyRootKey(cfg *Config, key, value string) error {
 	switch key {
 	case "riva_grpc":
@@ -345,6 +351,7 @@ func applyRootKey(cfg *Config, key, value string) error {
 	return nil
 }
 
+// parseStringValue parses quoted or unquoted scalar strings.
 func parseStringValue(raw string) (string, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -365,6 +372,7 @@ func parseStringValue(raw string) (string, error) {
 	return raw, nil
 }
 
+// parseSingleQuotedString parses shell-style single-quoted values.
 func parseSingleQuotedString(raw string) (string, error) {
 	if len(raw) < 2 || !strings.HasSuffix(raw, "'") {
 		return "", fmt.Errorf("invalid quoted string %q: missing closing single quote", raw)
@@ -392,6 +400,7 @@ func parseSingleQuotedString(raw string) (string, error) {
 	return out.String(), nil
 }
 
+// parseStringList parses `[ ... ]` phrase arrays.
 func parseStringList(raw string) ([]string, error) {
 	raw = strings.TrimSpace(raw)
 	if !strings.HasPrefix(raw, "[") || !strings.HasSuffix(raw, "]") {
@@ -419,6 +428,7 @@ func parseStringList(raw string) ([]string, error) {
 	return out, nil
 }
 
+// splitCommaAware splits by commas while preserving quoted commas.
 func splitCommaAware(input string) []string {
 	var (
 		parts  []string
@@ -449,6 +459,7 @@ func splitCommaAware(input string) []string {
 	return parts
 }
 
+// stripComments removes # comments unless they appear inside quotes.
 func stripComments(line string) string {
 	var (
 		quote  rune
@@ -473,10 +484,12 @@ func stripComments(line string) string {
 	return line
 }
 
+// lineError wraps parser errors with 1-indexed source line context.
 func lineError(line int, err error) error {
 	return fmt.Errorf("line %d: %w", line, err)
 }
 
+// scannerPosition returns the final logical line number for EOF errors.
 func scannerPosition(content string) int {
 	if content == "" {
 		return 1

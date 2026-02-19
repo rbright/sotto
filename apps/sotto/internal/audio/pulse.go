@@ -17,6 +17,7 @@ const (
 	chunkSizeBytes = 640 // 20ms @ 16kHz mono s16
 )
 
+// Device describes one Pulse input source surfaced to sotto.
 type Device struct {
 	ID          string
 	Description string
@@ -26,12 +27,14 @@ type Device struct {
 	Default     bool
 }
 
+// Selection is the resolved capture source plus optional fallback warning context.
 type Selection struct {
 	Device   Device
 	Warning  string
 	Fallback bool
 }
 
+// ListDevices returns available Pulse input sources with default/availability metadata.
 func ListDevices(_ context.Context) ([]Device, error) {
 	client, err := pulse.NewClient(
 		pulse.ClientApplicationName("sotto"),
@@ -70,6 +73,7 @@ func ListDevices(_ context.Context) ([]Device, error) {
 	return devices, nil
 }
 
+// SelectDevice resolves audio.input/audio.fallback preferences against live devices.
 func SelectDevice(ctx context.Context, input string, fallback string) (Selection, error) {
 	devices, err := ListDevices(ctx)
 	if err != nil {
@@ -78,6 +82,7 @@ func SelectDevice(ctx context.Context, input string, fallback string) (Selection
 	return selectDeviceFromList(devices, input, fallback)
 }
 
+// selectDeviceFromList applies selection policy to a pre-fetched device list.
 func selectDeviceFromList(devices []Device, input string, fallback string) (Selection, error) {
 	if len(devices) == 0 {
 		return Selection{}, errors.New("no audio input devices found")
@@ -163,6 +168,7 @@ func selectDeviceFromList(devices []Device, input string, fallback string) (Sele
 	}, nil
 }
 
+// deviceMatches reports whether a search term matches a device id or description.
 func deviceMatches(device Device, term string) bool {
 	if term == "" {
 		return false
@@ -172,6 +178,7 @@ func deviceMatches(device Device, term string) bool {
 	return strings.Contains(id, term) || strings.Contains(desc, term)
 }
 
+// Capture streams fixed-size PCM chunks from one selected Pulse source.
 type Capture struct {
 	device Device
 
@@ -190,6 +197,7 @@ type Capture struct {
 	bytes    atomic.Int64
 }
 
+// StartCapture creates and starts a 16kHz mono s16 record stream.
 func StartCapture(ctx context.Context, selected Device) (*Capture, error) {
 	client, err := pulse.NewClient(
 		pulse.ClientApplicationName("sotto"),
@@ -237,18 +245,22 @@ func StartCapture(ctx context.Context, selected Device) (*Capture, error) {
 	return capture, nil
 }
 
+// Device returns capture metadata for logging and diagnostics.
 func (c *Capture) Device() Device {
 	return c.device
 }
 
+// Chunks returns the PCM stream as fixed-size byte slices.
 func (c *Capture) Chunks() <-chan []byte {
 	return c.chunks
 }
 
+// BytesCaptured reports total bytes accepted from Pulse.
 func (c *Capture) BytesCaptured() int64 {
 	return c.bytes.Load()
 }
 
+// RawPCM returns a snapshot of all captured raw PCM bytes.
 func (c *Capture) RawPCM() []byte {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -257,6 +269,7 @@ func (c *Capture) RawPCM() []byte {
 	return out
 }
 
+// Stop halts the stream, flushes residual PCM, and closes Chunks exactly once.
 func (c *Capture) Stop() error {
 	c.mu.Lock()
 	if c.stopped {
@@ -295,10 +308,12 @@ func (c *Capture) Stop() error {
 	return nil
 }
 
+// Close is a convenience alias for Stop.
 func (c *Capture) Close() {
 	_ = c.Stop()
 }
 
+// onPCM receives raw Pulse frames and emits chunkSizeBytes slices to c.chunks.
 func (c *Capture) onPCM(buffer []byte) (int, error) {
 	c.inflight.Add(1)
 	defer c.inflight.Done()
@@ -344,12 +359,14 @@ func (c *Capture) onPCM(buffer []byte) (int, error) {
 	return len(buffer), nil
 }
 
+// writerFunc adapts a function to io.Writer for pulse.NewWriter.
 type writerFunc func([]byte) (int, error)
 
 func (f writerFunc) Write(b []byte) (int, error) {
 	return f(b)
 }
 
+// sourceStateString maps Pulse source state constants to human-readable values.
 func sourceStateString(state uint32) string {
 	switch state {
 	case 0:
@@ -363,6 +380,7 @@ func sourceStateString(state uint32) string {
 	}
 }
 
+// sourceAvailable maps Pulse source port availability to a simple boolean.
 func sourceAvailable(source *pulseproto.GetSourceInfoReply) bool {
 	if source == nil {
 		return false

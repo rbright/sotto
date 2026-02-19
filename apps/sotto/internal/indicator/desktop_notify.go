@@ -8,6 +8,8 @@ import (
 	"strings"
 )
 
+// desktopNotify sends a freedesktop notification over DBus via busctl.
+// It returns the notification ID assigned by the server.
 func desktopNotify(ctx context.Context, appName string, replaceID uint32, summary string, timeoutMS int) (uint32, error) {
 	args := []string{
 		"--user",
@@ -48,6 +50,7 @@ func desktopNotify(ctx context.Context, appName string, replaceID uint32, summar
 	return uint32(value), nil
 }
 
+// desktopDismiss requests explicit close by notification ID.
 func desktopDismiss(ctx context.Context, id uint32) error {
 	args := []string{
 		"--user",

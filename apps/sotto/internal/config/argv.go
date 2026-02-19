@@ -6,6 +6,7 @@ import (
 	"unicode"
 )
 
+// parseArgv tokenizes a command string into argv semantics without invoking a shell.
 func parseArgv(input string) ([]string, error) {
 	input = strings.TrimSpace(input)
 	if input == "" {
@@ -63,6 +64,7 @@ func parseArgv(input string) ([]string, error) {
 	return argv, nil
 }
 
+// mustParseArgv is a startup helper used only for static default command values.
 func mustParseArgv(input string) []string {
 	argv, err := parseArgv(input)
 	if err != nil {

@@ -11,6 +11,7 @@ import (
 	"github.com/rbright/sotto/internal/hypr"
 )
 
+// Controller is the session-facing indicator contract.
 type Controller interface {
 	ShowRecording(context.Context)
 	ShowTranscribing(context.Context)
@@ -22,6 +23,8 @@ type Controller interface {
 	FocusedMonitor() string
 }
 
+// HyprNotify is the concrete indicator implementation used by runtime sessions.
+// It can route notifications via Hyprland or desktop DBus based on config backend.
 type HyprNotify struct {
 	cfg    config.IndicatorConfig
 	logger *slog.Logger
@@ -32,10 +35,12 @@ type HyprNotify struct {
 	soundMu               sync.Mutex
 }
 
+// NewHyprNotify creates an indicator controller from config.
 func NewHyprNotify(cfg config.IndicatorConfig, logger *slog.Logger) *HyprNotify {
 	return &HyprNotify{cfg: cfg, logger: logger}
 }
 
+// ShowRecording signals recording start and emits the start cue.
 func (h *HyprNotify) ShowRecording(ctx context.Context) {
 	h.playCue(cueStart)
 	if !h.cfg.Enable {
@@ -47,6 +52,7 @@ func (h *HyprNotify) ShowRecording(ctx context.Context) {
 	})
 }
 
+// ShowTranscribing signals the post-capture transcription state.
 func (h *HyprNotify) ShowTranscribing(ctx context.Context) {
 	if !h.cfg.Enable {
 		return
@@ -56,6 +62,7 @@ func (h *HyprNotify) ShowTranscribing(ctx context.Context) {
 	})
 }
 
+// ShowError displays an error-state indicator message.
 func (h *HyprNotify) ShowError(ctx context.Context, text string) {
 	if !h.cfg.Enable {
 		return
@@ -72,18 +79,22 @@ func (h *HyprNotify) ShowError(ctx context.Context, text string) {
 	})
 }
 
+// CueStop emits the stop cue.
 func (h *HyprNotify) CueStop(context.Context) {
 	h.playCue(cueStop)
 }
 
+// CueComplete emits the successful-commit cue.
 func (h *HyprNotify) CueComplete(context.Context) {
 	h.playCue(cueComplete)
 }
 
+// CueCancel emits the cancel cue.
 func (h *HyprNotify) CueCancel(context.Context) {
 	h.playCue(cueCancel)
 }
 
+// Hide dismisses the active indicator surface.
 func (h *HyprNotify) Hide(ctx context.Context) {
 	if !h.cfg.Enable {
 		return
@@ -91,12 +102,14 @@ func (h *HyprNotify) Hide(ctx context.Context) {
 	h.run(ctx, h.dismiss)
 }
 
+// FocusedMonitor returns the monitor captured when recording began.
 func (h *HyprNotify) FocusedMonitor() string {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	return h.focusedMonitor
 }
 
+// ensureFocusedMonitor resolves and caches the focused monitor once per session.
 func (h *HyprNotify) ensureFocusedMonitor(ctx context.Context) {
 	h.mu.Lock()
 	alreadySet := h.focusedMonitor != ""
@@ -116,6 +129,7 @@ func (h *HyprNotify) ensureFocusedMonitor(ctx context.Context) {
 	h.mu.Unlock()
 }
 
+// notify dispatches indicator output through the configured backend.
 func (h *HyprNotify) notify(ctx context.Context, icon int, timeoutMS int, color string, text string) error {
 	if strings.EqualFold(strings.TrimSpace(h.cfg.Backend), "desktop") {
 		return h.notifyDesktop(ctx, timeoutMS, text)
@@ -123,6 +137,7 @@ func (h *HyprNotify) notify(ctx context.Context, icon int, timeoutMS int, color 
 	return hypr.Notify(ctx, icon, timeoutMS, color, text)
 }
 
+// dismiss removes indicator output from the configured backend.
 func (h *HyprNotify) dismiss(ctx context.Context) error {
 	if strings.EqualFold(strings.TrimSpace(h.cfg.Backend), "desktop") {
 		return h.dismissDesktop(ctx)
@@ -130,6 +145,7 @@ func (h *HyprNotify) dismiss(ctx context.Context) error {
 	return hypr.DismissNotify(ctx)
 }
 
+// notifyDesktop sends a replaceable desktop notification and stores its ID.
 func (h *HyprNotify) notifyDesktop(ctx context.Context, timeoutMS int, text string) error {
 	h.mu.Lock()
 	replaceID := h.desktopNotificationID
@@ -151,6 +167,7 @@ func (h *HyprNotify) notifyDesktop(ctx context.Context, timeoutMS int, text stri
 	return nil
 }
 
+// dismissDesktop closes the current desktop notification ID when present.
 func (h *HyprNotify) dismissDesktop(ctx context.Context) error {
 	h.mu.Lock()
 	id := h.desktopNotificationID
@@ -163,6 +180,7 @@ func (h *HyprNotify) dismissDesktop(ctx context.Context) error {
 	return desktopDismiss(ctx, id)
 }
 
+// run executes an indicator operation with a bounded timeout.
 func (h *HyprNotify) run(ctx context.Context, fn func(context.Context) error) {
 	runCtx, cancel := context.WithTimeout(ctx, 400*time.Millisecond)
 	defer cancel()
@@ -171,6 +189,7 @@ func (h *HyprNotify) run(ctx context.Context, fn func(context.Context) error) {
 	}
 }
 
+// playCue serializes cue playback and emits audio asynchronously.
 func (h *HyprNotify) playCue(kind cueKind) {
 	if !h.cfg.SoundEnable {
 		return
@@ -184,6 +203,7 @@ func (h *HyprNotify) playCue(kind cueKind) {
 	}()
 }
 
+// log emits debug-only indicator failures to the runtime logger.
 func (h *HyprNotify) log(message string, err error) {
 	if h.logger == nil || err == nil {
 		return

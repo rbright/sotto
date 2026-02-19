@@ -2,8 +2,10 @@ package fsm
 
 import "fmt"
 
+// State is one lifecycle state for a dictation session.
 type State string
 
+// Event is one transition trigger consumed by the state machine.
 type Event string
 
 const (
@@ -22,6 +24,7 @@ const (
 	EventReset       Event = "reset"
 )
 
+// Transition validates and applies one state transition.
 func Transition(current State, event Event) (State, error) {
 	if event == EventFail {
 		return StateError, nil
@@ -63,6 +66,7 @@ func Transition(current State, event Event) (State, error) {
 	}
 }
 
+// invalidTransition formats a stable error message used by tests and callers.
 func invalidTransition(state State, event Event) error {
 	return fmt.Errorf("invalid transition: %s --(%s)--> ?", state, event)
 }

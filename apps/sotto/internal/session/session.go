@@ -20,6 +20,7 @@ const (
 	actionCancel
 )
 
+// Result is the complete lifecycle output returned by one Run invocation.
 type Result struct {
 	State          fsm.State
 	Transcript     string
@@ -33,6 +34,7 @@ type Result struct {
 	FocusedMonitor string
 }
 
+// Indicator is the session-facing subset of indicator behavior.
 type Indicator interface {
 	ShowRecording(context.Context)
 	ShowTranscribing(context.Context)
@@ -44,6 +46,7 @@ type Indicator interface {
 	FocusedMonitor() string
 }
 
+// noopIndicator preserves session flow when no indicator is wired.
 type noopIndicator struct{}
 
 func (noopIndicator) ShowRecording(context.Context)     {}
@@ -55,6 +58,7 @@ func (noopIndicator) CueCancel(context.Context)         {}
 func (noopIndicator) Hide(context.Context)              {}
 func (noopIndicator) FocusedMonitor() string            { return "" }
 
+// Controller orchestrates session state transitions and side effects.
 type Controller struct {
 	logger     *slog.Logger
 	transcribe Transcriber
@@ -67,6 +71,7 @@ type Controller struct {
 	actions chan action
 }
 
+// NewController constructs a session controller with safe default fallbacks.
 func NewController(
 	logger *slog.Logger,
 	transcriber Transcriber,
@@ -93,12 +98,14 @@ func NewController(
 	}
 }
 
+// State returns the current FSM state snapshot.
 func (c *Controller) State() fsm.State {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.state
 }
 
+// transition applies one FSM event to the controller state.
 func (c *Controller) transition(event fsm.Event) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -111,6 +118,7 @@ func (c *Controller) transition(event fsm.Event) error {
 	return nil
 }
 
+// Run executes one owner lifecycle from start to stop/cancel/failure completion.
 func (c *Controller) Run(ctx context.Context) Result {
 	result := Result{StartedAt: time.Now()}
 
@@ -247,6 +255,7 @@ func (c *Controller) Run(ctx context.Context) Result {
 	}
 }
 
+// Handle serves IPC commands for the active owner session.
 func (c *Controller) Handle(_ context.Context, req ipc.Request) ipc.Response {
 	switch req.Command {
 	case "status":
@@ -262,6 +271,7 @@ func (c *Controller) Handle(_ context.Context, req ipc.Request) ipc.Response {
 	}
 }
 
+// requestStop enqueues a stop action when state permits it.
 func (c *Controller) requestStop(source string) ipc.Response {
 	state := c.State()
 	if state == fsm.StateTranscribing {
@@ -279,6 +289,7 @@ func (c *Controller) requestStop(source string) ipc.Response {
 	}
 }
 
+// requestCancel enqueues a cancel action when state permits it.
 func (c *Controller) requestCancel() ipc.Response {
 	state := c.State()
 	if state == fsm.StateTranscribing {
@@ -296,11 +307,13 @@ func (c *Controller) requestCancel() ipc.Response {
 	}
 }
 
+// toErrorAndReset transitions to error and back to idle best-effort.
 func (c *Controller) toErrorAndReset() {
 	_ = c.transition(fsm.EventFail)
 	_ = c.transition(fsm.EventReset)
 }
 
+// IsPipelineUnavailable reports whether an error represents missing pipeline wiring.
 func IsPipelineUnavailable(err error) bool {
 	return errors.Is(err, ErrPipelineUnavailable)
 }

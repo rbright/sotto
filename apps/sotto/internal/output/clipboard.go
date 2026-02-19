@@ -10,15 +10,18 @@ import (
 	"github.com/rbright/sotto/internal/config"
 )
 
+// Committer applies transcript output side effects (clipboard + optional paste).
 type Committer struct {
 	config config.Config
 	logger *slog.Logger
 }
 
+// NewCommitter constructs a transcript committer from runtime config.
 func NewCommitter(cfg config.Config, logger *slog.Logger) *Committer {
 	return &Committer{config: cfg, logger: logger}
 }
 
+// Commit writes transcript text to clipboard and optionally dispatches paste.
 func (c *Committer) Commit(ctx context.Context, transcript string) error {
 	if transcript == "" {
 		return nil
@@ -51,6 +54,7 @@ func (c *Committer) Commit(ctx context.Context, transcript string) error {
 	return nil
 }
 
+// runCommandWithInput executes argv and optionally writes input to stdin.
 func runCommandWithInput(ctx context.Context, argv []string, input string) error {
 	if len(argv) == 0 {
 		return fmt.Errorf("command argv cannot be empty")
@@ -82,6 +86,7 @@ func runCommandWithInput(ctx context.Context, argv []string, input string) error
 	return nil
 }
 
+// logPasteFailure records paste errors while preserving clipboard success semantics.
 func (c *Committer) logPasteFailure(err error) {
 	if c.logger == nil || err == nil {
 		return

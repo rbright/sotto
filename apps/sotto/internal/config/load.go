@@ -6,6 +6,7 @@ import (
 	"os"
 )
 
+// Loaded captures resolved config path, parsed values, and non-fatal warnings.
 type Loaded struct {
 	Path     string
 	Config   Config
@@ -13,6 +14,7 @@ type Loaded struct {
 	Exists   bool
 }
 
+// Load resolves, reads, parses, and validates the runtime configuration.
 func Load(explicitPath string) (Loaded, error) {
 	resolvedPath, err := ResolvePath(explicitPath)
 	if err != nil {

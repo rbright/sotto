@@ -12,6 +12,7 @@ import (
 	"time"
 )
 
+// Send opens a unix-socket request/response roundtrip with a deadline.
 func Send(ctx context.Context, path string, req Request, timeout time.Duration) (Response, error) {
 	dialer := net.Dialer{Timeout: timeout}
 	conn, err := dialer.DialContext(ctx, "unix", path)
@@ -44,6 +45,7 @@ func Send(ctx context.Context, path string, req Request, timeout time.Duration) 
 	return resp, nil
 }
 
+// Probe checks whether a responsive owner is currently listening on path.
 func Probe(ctx context.Context, path string, timeout time.Duration) (bool, error) {
 	_, err := Send(ctx, path, Request{Command: "status"}, timeout)
 	if err == nil {
@@ -55,6 +57,7 @@ func Probe(ctx context.Context, path string, timeout time.Duration) (bool, error
 	return false, fmt.Errorf("probe socket: %w", err)
 }
 
+// isSocketMissing reports absent-socket failures.
 func isSocketMissing(err error) bool {
 	if err == nil {
 		return false
@@ -62,6 +65,7 @@ func isSocketMissing(err error) bool {
 	return errors.Is(err, os.ErrNotExist)
 }
 
+// isConnectionRefused reports no-listener failures.
 func isConnectionRefused(err error) bool {
 	if err == nil {
 		return false
