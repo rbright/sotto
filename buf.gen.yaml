@@ -6,11 +6,11 @@ managed:
     default: github.com/rbright/sotto/proto/gen/go
 
 plugins:
-  - plugin: buf.build/protocolbuffers/go:v1.36.6
+  - plugin: go
     out: apps/sotto/proto/gen/go
     opt:
       - paths=source_relative
-  - plugin: buf.build/grpc/go:v1.5.1
+  - plugin: go-grpc
     out: apps/sotto/proto/gen/go
     opt:
       - paths=source_relative
