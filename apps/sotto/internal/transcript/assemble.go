@@ -2,6 +2,7 @@ package transcript
 
 import "strings"
 
+// Assemble joins final ASR segments and applies whitespace/trailing-space normalization.
 func Assemble(finalSegments []string, trailingSpace bool) string {
 	if len(finalSegments) == 0 {
 		return ""

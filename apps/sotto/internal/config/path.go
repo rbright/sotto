@@ -7,6 +7,7 @@ import (
 	"strings"
 )
 
+// ResolvePath applies CLI/XDG/home fallback rules for config.conf location.
 func ResolvePath(explicit string) (string, error) {
 	if strings.TrimSpace(explicit) != "" {
 		return explicit, nil

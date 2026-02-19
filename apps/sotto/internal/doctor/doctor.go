@@ -14,16 +14,19 @@ import (
 	"github.com/rbright/sotto/internal/config"
 )
 
+// Check is one doctor assertion result.
 type Check struct {
 	Name    string
 	Pass    bool
 	Message string
 }
 
+// Report is the full doctor output contract.
 type Report struct {
 	Checks []Check
 }
 
+// OK returns true when all checks pass.
 func (r Report) OK() bool {
 	for _, check := range r.Checks {
 		if !check.Pass {
@@ -33,6 +36,7 @@ func (r Report) OK() bool {
 	return true
 }
 
+// String renders the report as user-facing text output.
 func (r Report) String() string {
 	var b strings.Builder
 	for _, check := range r.Checks {
@@ -45,6 +49,7 @@ func (r Report) String() string {
 	return strings.TrimSuffix(b.String(), "\n")
 }
 
+// Run executes environment/config/runtime checks for a loaded config.
 func Run(cfg config.Loaded) Report {
 	checks := []Check{}
 
@@ -78,6 +83,7 @@ func Run(cfg config.Loaded) Report {
 	return Report{Checks: checks}
 }
 
+// checkEnv validates an environment variable through a caller-supplied predicate.
 func checkEnv(name string, predicate func(string) bool, okMsg, failMsg string) Check {
 	value := os.Getenv(name)
 	if predicate(value) {
@@ -86,6 +92,7 @@ func checkEnv(name string, predicate func(string) bool, okMsg, failMsg string) C
 	return Check{Name: name, Pass: false, Message: failMsg}
 }
 
+// checkCommand validates that argv contains a runnable command.
 func checkCommand(argv []string, name string) Check {
 	if len(argv) == 0 {
 		return Check{Name: name, Pass: false, Message: "command is empty"}
@@ -93,6 +100,7 @@ func checkCommand(argv []string, name string) Check {
 	return checkBinary(argv[0], fmt.Sprintf("%s command is available", name))
 }
 
+// checkBinary validates that a binary exists in PATH.
 func checkBinary(bin string, okMsg string) Check {
 	path, err := exec.LookPath(bin)
 	if err != nil {
@@ -101,6 +109,7 @@ func checkBinary(bin string, okMsg string) Check {
 	return Check{Name: bin, Pass: true, Message: fmt.Sprintf("found at %s (%s)", path, okMsg)}
 }
 
+// checkAudioSelection runs live device selection to surface selection/fallback issues.
 func checkAudioSelection(cfg config.Config) Check {
 	selection, err := audio.SelectDevice(context.Background(), cfg.Audio.Input, cfg.Audio.Fallback)
 	if err != nil {
@@ -113,6 +122,7 @@ func checkAudioSelection(cfg config.Config) Check {
 	return Check{Name: "audio.device", Pass: true, Message: message}
 }
 
+// checkRivaReady probes the configured Riva HTTP ready endpoint.
 func checkRivaReady(cfg config.Config) Check {
 	base := strings.TrimSpace(cfg.RivaHTTP)
 	if base == "" {

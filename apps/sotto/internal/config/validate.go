@@ -6,6 +6,7 @@ import (
 	"strings"
 )
 
+// Validate enforces config invariants and returns non-fatal warnings.
 func Validate(cfg Config) ([]Warning, error) {
 	warnings := make([]Warning, 0)
 
@@ -63,6 +64,7 @@ func Validate(cfg Config) ([]Warning, error) {
 	return warnings, nil
 }
 
+// BuildSpeechPhrases merges enabled vocab sets into deterministic ASR phrase payloads.
 func BuildSpeechPhrases(cfg Config) ([]SpeechPhrase, []Warning, error) {
 	enabledSets := cfg.Vocab.GlobalSets
 	if len(enabledSets) == 0 {

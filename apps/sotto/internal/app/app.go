@@ -24,17 +24,20 @@ import (
 	"github.com/rbright/sotto/internal/version"
 )
 
+// Runner holds process-level dependencies used by command handlers.
 type Runner struct {
 	Stdout io.Writer
 	Stderr io.Writer
 	Logger *slog.Logger
 }
 
+// Execute is the package entrypoint used by cmd/sotto/main.go.
 func Execute(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	r := Runner{Stdout: stdout, Stderr: stderr}
 	return r.Execute(ctx, args)
 }
 
+// Execute parses CLI arguments, loads config/logging, and dispatches a command.
 func (r Runner) Execute(ctx context.Context, args []string) int {
 	parsed, err := cli.Parse(args)
 	if err != nil {
@@ -114,6 +117,7 @@ func (r Runner) Execute(ctx context.Context, args []string) int {
 	}
 }
 
+// commandDevices prints discovered input devices and key availability metadata.
 func (r Runner) commandDevices(ctx context.Context) int {
 	devices, err := audio.ListDevices(ctx)
 	if err != nil {
@@ -153,6 +157,7 @@ func (r Runner) commandDevices(ctx context.Context) int {
 	return 0
 }
 
+// commandStatus queries the active owner (if any) and prints session state.
 func (r Runner) commandStatus(ctx context.Context) int {
 	socketPath, err := ipc.RuntimeSocketPath()
 	if err != nil {
@@ -177,6 +182,7 @@ func (r Runner) commandStatus(ctx context.Context) int {
 	return 0
 }
 
+// forwardOrFail forwards a command to the active owner and fails when no owner exists.
 func (r Runner) forwardOrFail(ctx context.Context, command string) int {
 	socketPath, err := ipc.RuntimeSocketPath()
 	if err != nil {
@@ -199,6 +205,7 @@ func (r Runner) forwardOrFail(ctx context.Context, command string) int {
 	return 0
 }
 
+// commandToggle starts a new owner session or forwards toggle to an existing owner.
 func (r Runner) commandToggle(ctx context.Context, cfg config.Config, logger *slog.Logger) int {
 	socketPath, err := ipc.RuntimeSocketPath()
 	if err != nil {
@@ -276,6 +283,7 @@ func (r Runner) commandToggle(ctx context.Context, cfg config.Config, logger *sl
 	return 0
 }
 
+// logSessionResult writes normalized session metrics into the runtime logger.
 func logSessionResult(logger *slog.Logger, result session.Result) {
 	if logger == nil {
 		return
@@ -300,6 +308,9 @@ func logSessionResult(logger *slog.Logger, result session.Result) {
 	logger.Info("session complete", fields...)
 }
 
+// tryForward attempts to send a command to an existing owner and classifies outcome.
+//
+// handled=false means there was no active owner to handle the request.
 func tryForward(ctx context.Context, socketPath string, command string) (ipc.Response, bool, error) {
 	resp, err := ipc.Send(ctx, socketPath, ipc.Request{Command: command}, 220*time.Millisecond)
 	if err == nil {
@@ -319,6 +330,7 @@ func tryForward(ctx context.Context, socketPath string, command string) (ipc.Res
 	return ipc.Response{}, true, fmt.Errorf("forward command %q: %w", command, err)
 }
 
+// isSocketMissing reports whether forwarding failed because the owner socket is absent.
 func isSocketMissing(err error) bool {
 	if err == nil {
 		return false
@@ -327,6 +339,7 @@ func isSocketMissing(err error) bool {
 		strings.Contains(err.Error(), "no such file or directory")
 }
 
+// isConnectionRefused reports whether forwarding failed because no owner is listening.
 func isConnectionRefused(err error) bool {
 	if err == nil {
 		return false

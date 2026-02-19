@@ -10,16 +10,19 @@ import (
 	"sync"
 )
 
+// Handler processes one IPC command request.
 type Handler interface {
 	Handle(context.Context, Request) Response
 }
 
+// HandlerFunc adapts a function to the Handler interface.
 type HandlerFunc func(context.Context, Request) Response
 
 func (f HandlerFunc) Handle(ctx context.Context, req Request) Response {
 	return f(ctx, req)
 }
 
+// Serve accepts unix-socket clients until context cancellation or listener close.
 func Serve(ctx context.Context, listener net.Listener, handler Handler) error {
 	var wg sync.WaitGroup
 

@@ -1,9 +1,11 @@
 package ipc
 
+// Request is one command sent over the local unix-domain socket.
 type Request struct {
 	Command string `json:"command"`
 }
 
+// Response is the normalized command outcome returned by the owner session.
 type Response struct {
 	OK      bool   `json:"ok"`
 	State   string `json:"state,omitempty"`

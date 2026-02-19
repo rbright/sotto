@@ -16,11 +16,13 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+// SpeechPhrase is one vocabulary boost phrase in request-ready form.
 type SpeechPhrase struct {
 	Phrase string
 	Boost  float32
 }
 
+// StreamConfig controls stream initialization and recognition behavior.
 type StreamConfig struct {
 	Endpoint              string
 	LanguageCode          string
@@ -31,6 +33,7 @@ type StreamConfig struct {
 	DebugResponseSinkJSON io.Writer
 }
 
+// Stream wraps one active Riva StreamingRecognize RPC lifecycle.
 type Stream struct {
 	conn   *grpc.ClientConn
 	stream asrpb.RivaSpeechRecognition_StreamingRecognizeClient
@@ -45,6 +48,7 @@ type Stream struct {
 	debugSinkJSON io.Writer
 }
 
+// DialStream establishes a stream, sends config, and starts the receive loop.
 func DialStream(ctx context.Context, cfg StreamConfig) (*Stream, error) {
 	endpoint := strings.TrimSpace(cfg.Endpoint)
 	if endpoint == "" {
@@ -122,6 +126,7 @@ func DialStream(ctx context.Context, cfg StreamConfig) (*Stream, error) {
 	return s, nil
 }
 
+// recvLoop continuously receives recognition responses until stream close/error.
 func (s *Stream) recvLoop() {
 	defer close(s.recvDone)
 
@@ -142,6 +147,7 @@ func (s *Stream) recvLoop() {
 	}
 }
 
+// recordResponse merges final/interim segments into stream state.
 func (s *Stream) recordResponse(resp *asrpb.StreamingRecognizeResponse) {
 	if sink := s.debugSinkJSON; sink != nil {
 		b, err := json.Marshal(resp)
@@ -175,6 +181,7 @@ func (s *Stream) recordResponse(resp *asrpb.StreamingRecognizeResponse) {
 	}
 }
 
+// SendAudio sends one chunk of PCM audio over the active stream.
 func (s *Stream) SendAudio(chunk []byte) error {
 	if len(chunk) == 0 {
 		return nil
@@ -197,6 +204,7 @@ func (s *Stream) SendAudio(chunk []byte) error {
 	})
 }
 
+// CloseAndCollect closes send-side audio and returns merged transcript segments.
 func (s *Stream) CloseAndCollect(ctx context.Context) ([]string, time.Duration, error) {
 	closedAt := time.Now()
 
@@ -227,6 +235,7 @@ func (s *Stream) CloseAndCollect(ctx context.Context) ([]string, time.Duration, 
 	return segments, latency, nil
 }
 
+// collectSegments appends a valid trailing interim segment when needed.
 func collectSegments(committedSegments []string, lastInterim string) []string {
 	segments := append([]string(nil), committedSegments...)
 	if interim := cleanSegment(lastInterim); interim != "" {
@@ -235,6 +244,7 @@ func collectSegments(committedSegments []string, lastInterim string) []string {
 	return segments
 }
 
+// appendSegment merges continuation segments to avoid duplicate transcript growth.
 func appendSegment(segments []string, transcript string) []string {
 	transcript = cleanSegment(transcript)
 	if transcript == "" {
@@ -258,6 +268,7 @@ func appendSegment(segments []string, transcript string) []string {
 	}
 }
 
+// isInterimContinuation decides whether an interim update extends prior speech.
 func isInterimContinuation(previous string, current string) bool {
 	previous = cleanSegment(previous)
 	current = cleanSegment(current)
@@ -284,6 +295,7 @@ func isInterimContinuation(previous string, current string) bool {
 	return common*2 >= shorter
 }
 
+// commonPrefixWords counts shared leading words across two slices.
 func commonPrefixWords(left []string, right []string) int {
 	limit := len(left)
 	if len(right) < limit {
@@ -299,6 +311,7 @@ func commonPrefixWords(left []string, right []string) int {
 	return count
 }
 
+// cleanSegment normalizes transcript whitespace.
 func cleanSegment(raw string) string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -307,6 +320,7 @@ func cleanSegment(raw string) string {
 	return strings.Join(strings.Fields(raw), " ")
 }
 
+// Cancel aborts stream processing and closes the underlying grpc connection.
 func (s *Stream) Cancel() error {
 	s.mu.Lock()
 	if !s.closedSend {
@@ -317,6 +331,7 @@ func (s *Stream) Cancel() error {
 	return s.conn.Close()
 }
 
+// waitForReady blocks until gRPC connection enters Ready or fails.
 func waitForReady(ctx context.Context, conn *grpc.ClientConn) error {
 	for {
 		state := conn.GetState()
