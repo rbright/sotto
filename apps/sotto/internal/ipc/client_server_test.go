@@ -78,7 +78,10 @@ func TestSendReadResponseError(t *testing.T) {
 		if acceptErr != nil {
 			return
 		}
-		_ = conn.Close()
+		defer conn.Close()
+
+		reader := bufio.NewReader(conn)
+		_, _ = reader.ReadBytes('\n')
 	}()
 
 	_, err = Send(context.Background(), socketPath, Request{Command: "status"}, 200*time.Millisecond)
