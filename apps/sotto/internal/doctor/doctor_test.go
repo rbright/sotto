@@ -91,7 +91,7 @@ func TestCheckRivaReadyFailureStatusCode(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	cfg := config.Default()
-	cfg.RivaHTTP = server.URL
+	cfg.RivaHTTP = strings.TrimPrefix(server.URL, "http://")
 	cfg.RivaHealthPath = "/v1/health/ready"
 
 	check := checkRivaReady(cfg)
@@ -107,7 +107,7 @@ func TestCheckRivaReadyPassesOnHTTP200NonReadyBody(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	cfg := config.Default()
-	cfg.RivaHTTP = server.URL
+	cfg.RivaHTTP = strings.TrimPrefix(server.URL, "http://")
 	cfg.RivaHealthPath = "/v1/health/ready"
 
 	check := checkRivaReady(cfg)
