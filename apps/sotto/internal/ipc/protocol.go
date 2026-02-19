@@ -1,3 +1,4 @@
+// Package ipc provides single-instance unix-socket protocol and server/client helpers.
 package ipc
 
 // Request is one command sent over the local unix-domain socket.
