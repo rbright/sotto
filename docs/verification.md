@@ -1,12 +1,20 @@
 # Verification
 
-## CI/local gate
+## Required local gate
 
-Run before handoff:
+Run before hand-off:
 
 ```bash
 just ci-check
 nix build 'path:.#sotto'
+```
+
+## Optional integration-tag tests
+
+These are local-resource tests and are not part of the default CI gate:
+
+```bash
+just test-integration
 ```
 
 ## Coverage snapshot
@@ -15,21 +23,13 @@ nix build 'path:.#sotto'
 go test ./apps/sotto/... -cover
 ```
 
-## Optional integration-tag tests (local machine resources)
-
-These tests are excluded from the default CI path:
-
-```bash
-just test-integration
-```
-
-## Local runtime smoke (manual, non-CI)
+## Manual runtime smoke (non-CI)
 
 Prerequisites:
 
-- local Riva endpoint reachable from configured `riva_grpc` / `riva_http`
-- active desktop session compatible with your configured output adapter
-- valid config file (or defaults)
+- local Riva endpoint is reachable
+- active Wayland/Hyprland session
+- valid `sotto` config
 
 Quick helpers:
 
@@ -38,13 +38,13 @@ just smoke-riva-doctor
 just smoke-riva-manual
 ```
 
-Manual checklist:
+Checklist:
 
-1. `sotto doctor` reports audio + Riva ready.
-2. `sotto toggle` (start), speak a short phrase, `sotto toggle` (stop).
-3. Confirm a non-empty transcript commit.
-4. Ensure clipboard retention after commit.
-5. Check configured paste behavior (if enabled).
-6. Confirm the cancel path (`sotto cancel`) does not alter clipboard.
-7. Ensure the Riva-down failure path is safe (no unintended output side effects).
-8. Check stale socket recovery after abnormal process termination.
+1. `sotto doctor` reports config/audio/Riva ready.
+2. `sotto toggle` start -> speak -> `sotto toggle` stop.
+3. Confirm non-empty transcript commit.
+4. Confirm clipboard contains transcript after commit.
+5. Confirm paste behavior for your configured adapter.
+6. Run `sotto cancel` and verify clipboard is unchanged.
+7. Stop Riva and confirm safe failure (no unintended clipboard/paste side effects).
+8. Kill active `sotto` process mid-session and verify stale-socket recovery on next command.

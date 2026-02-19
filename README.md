@@ -2,41 +2,46 @@
 
 [![CI](https://github.com/rbright/sotto/actions/workflows/ci.yml/badge.svg)](https://github.com/rbright/sotto/actions/workflows/ci.yml)
 
-Local-first CLI for automated speech recognition (ASR).
+Local-first speech-to-text CLI.
 
-`sotto` captures microphone audio, streams it to a local ASR backend, assembles transcript text, and can optionally route output to clipboard/paste adapters.
+`sotto` captures microphone audio, streams to a local ASR backend (Riva by default), assembles transcript text, and commits output to the clipboard with optional paste dispatch.
 
-- No daemon/background service.
-- Single binary runtime.
-- Built for local-first automation workflows.
+## Why this exists
 
-## Features
+- single-process CLI (no daemon)
+- local-first by default (localhost Riva endpoints)
+- explicit state machine (`toggle`, `stop`, `cancel`)
+- deterministic config + observable runtime logs
 
-- `toggle` / `stop` / `cancel` command flow for dictation sessions
-- single-instance runtime coordination via unix socket
-- local audio capture via PipeWire/Pulse
-- streaming ASR via local NVIDIA Riva gRPC endpoint
-- transcript normalization with optional trailing space
-- output adapters: clipboard + optional paste dispatch (command or configurable shortcut)
-- indicator transport configurable (`hypr` or desktop notifications)
-- session diagnostics via `sotto doctor`
-- JSONL session logs for observability/debugging
+## Feature summary
 
-## Requirements
+- single-instance command coordination via unix socket
+- audio capture via PipeWire/Pulse
+- streaming ASR via NVIDIA Riva gRPC
+- transcript normalization + optional trailing space
+- output adapters:
+  - clipboard command (`clipboard_cmd`)
+  - optional paste command override (`paste_cmd`)
+  - default Hyprland paste path (`hyprctl sendshortcut`) when `paste_cmd` is unset
+- indicator backends:
+  - `hypr` notifications
+  - `desktop` (freedesktop notifications, e.g. mako)
+- optional WAV cue files for start/stop/complete/cancel
+- built-in environment diagnostics via `sotto doctor`
 
-Core runtime dependencies:
+## Platform scope (current)
 
-- local ASR service endpoint (default: NVIDIA Riva)
-- local audio backend compatible with PipeWire/Pulse
+`sotto` is currently optimized for **Wayland + Hyprland** workflows.
 
-Adapter/tool dependencies (when enabled by config):
+- default paste behavior uses `hyprctl`
+- `doctor` currently checks for a Hyprland session
 
-- clipboard command (default: `wl-copy`)
-- paste/notification adapter commands (for your environment)
+You can still reduce Hyprland coupling by using:
 
-> `sotto` is local-first by default. No cloud ASR endpoint is required by design.
+- `indicator.backend = desktop`
+- `paste_cmd = "..."` (explicit command override)
 
-## Installation
+## Install
 
 ### Nix (recommended)
 
@@ -73,64 +78,33 @@ sotto doctor
 sotto version
 ```
 
-## Architecture
-
-High-level architecture docs and diagrams:
-
-- [Architecture overview](./docs/architecture.md)
-- [Modularity review + refactor slices](./docs/modularity.md)
-
-```mermaid
-flowchart LR
-    Trigger["Trigger source\n(shell / hotkey / script)"] --> CLI["sotto CLI"]
-    CLI --> IPC["UDS socket\n$XDG_RUNTIME_DIR/sotto.sock"]
-    IPC --> Session["Session controller"]
-    Session --> Audio["Audio capture"]
-    Audio --> ASR["ASR stream"]
-    ASR --> Transcript["Transcript assembly"]
-    Transcript --> Output["Output adapters"]
-```
-
 ## Configuration
 
-Path resolution order:
+Config resolution order:
 
 1. `--config <path>`
 2. `$XDG_CONFIG_HOME/sotto/config.conf`
 3. `~/.config/sotto/config.conf`
 
-Detailed reference:
+See full key reference and examples in:
 
-- [Configuration reference](./docs/configuration.md)
+- [`docs/configuration.md`](./docs/configuration.md)
 
 ## Verification
 
-Build/test gate:
+Required local gate before hand-off:
 
 ```bash
 just ci-check
 nix build 'path:.#sotto'
 ```
 
-Optional integration-tag tests (local machine resources):
+Manual/local runtime checklist:
 
-```bash
-just test-integration
-```
+- [`docs/verification.md`](./docs/verification.md)
 
-Local runtime smoke helpers:
+## Architecture and design docs
 
-```bash
-just smoke-riva-doctor
-just smoke-riva-manual
-```
-
-Full checklist:
-
-- [Verification guide](./docs/verification.md)
-
-## References
-
-- PipeWire: https://pipewire.org/
-- NVIDIA Riva: https://developer.nvidia.com/riva
-- NVIDIA Parakeet models on Hugging Face: https://huggingface.co/models?search=nvidia%20parakeet
+- [`docs/architecture.md`](./docs/architecture.md)
+- [`docs/modularity.md`](./docs/modularity.md)
+- [`AGENTS.md`](./AGENTS.md)

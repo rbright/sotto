@@ -1,21 +1,21 @@
-# Configuration Reference
+# Configuration
 
-## Path resolution order
+## Resolution order
 
-`sotto` resolves config in this order:
+`sotto` loads configuration in this order:
 
 1. `--config <path>`
 2. `$XDG_CONFIG_HOME/sotto/config.conf`
 3. `~/.config/sotto/config.conf`
 
-If no file exists, defaults are used and a warning is emitted.
+If no config file exists, defaults are used.
 
 ## Grammar
 
 - `key = value`
-- comments begin with `#`
-- quoted and unquoted strings are supported
-- vocab blocks use:
+- comments start with `#`
+- string values may be quoted (`"..."` or `'...'`) or unquoted
+- vocab blocks:
 
 ```conf
 vocabset <name> {
@@ -24,50 +24,67 @@ vocabset <name> {
 }
 ```
 
-Unknown keys fail fast with line-numbered errors.
+Unknown keys are hard errors.
 
-## Top-level keys
+## Keys and defaults
 
-| Key | Type | Default | Notes |
-| --- | --- | --- | --- |
-| `riva_grpc` | string | `127.0.0.1:50051` | gRPC ASR endpoint |
-| `riva_http` | string | `127.0.0.1:9000` | HTTP endpoint used by doctor readiness check |
-| `riva_health_path` | string | `/v1/health/ready` | must start with `/` |
-| `audio.input` | string | `default` | preferred input device match |
-| `audio.fallback` | string | `default` | fallback device match |
-| `paste.enable` | bool | `true` | enables paste dispatch after clipboard set |
-| `paste.shortcut` | string | `CTRL,V` | sendshortcut payload used by default paste adapter (`paste_cmd` unset) |
-| `asr.automatic_punctuation` | bool | `true` | ASR punctuation hint |
-| `asr.language_code` | string | `en-US` | ASR language code |
-| `asr.model` | string | `` (empty) | optional explicit ASR model |
-| `transcript.trailing_space` | bool | `true` | append trailing space to assembled transcript |
-| `clipboard_cmd` | command string | `wl-copy --trim-newline` | required command |
-| `paste_cmd` | command string | empty | optional override; argv parsed, no shell |
-| `vocab.global` | comma list | empty | enabled vocabset names |
-| `vocab.max_phrases` | int | `1024` | hard cap after dedupe |
-| `debug.audio_dump` | bool | `false` | writes debug WAV artifacts |
-| `debug.grpc_dump` | bool | `false` | writes raw ASR response JSON |
+### Core endpoints and audio
 
-## Indicator keys
+| Key | Default | Notes |
+| --- | --- | --- |
+| `riva_grpc` | `127.0.0.1:50051` | gRPC ASR endpoint |
+| `riva_http` | `127.0.0.1:9000` | HTTP endpoint for readiness checks |
+| `riva_health_path` | `/v1/health/ready` | must start with `/` |
+| `audio.input` | `default` | preferred device match |
+| `audio.fallback` | `default` | fallback device match |
 
-| Key | Type | Default | Notes |
-| --- | --- | --- | --- |
-| `indicator.enable` | bool | `true` | visual indicator on/off |
-| `indicator.backend` | string | `hypr` | indicator transport (`hypr` or `desktop` via freedesktop notifications) |
-| `indicator.desktop_app_name` | string | `sotto-indicator` | desktop notification app name (`desktop` backend) |
-| `indicator.sound_enable` | bool | `true` | cue sounds on/off |
-| `indicator.sound_start_file` | string | empty | optional WAV path |
-| `indicator.sound_stop_file` | string | empty | optional WAV path |
-| `indicator.sound_complete_file` | string | empty | optional WAV path |
-| `indicator.sound_cancel_file` | string | empty | optional WAV path |
-| `indicator.height` | int | `28` | visual indicator size parameter |
-| `indicator.text_recording` | string | `Recording…` | recording label |
-| `indicator.text_processing` | string | `Transcribing…` | processing label |
-| `indicator.text_transcribing` | string | alias of `indicator.text_processing` | compatibility alias |
-| `indicator.text_error` | string | `Speech recognition error` | error label |
-| `indicator.error_timeout_ms` | int | `1600` | must be `>= 0`; `0` uses runtime fallback |
+### Output and transcript
 
-For desktop notifications rendered by mako, you can place the indicator at the top-center with an app-name rule:
+| Key | Default | Notes |
+| --- | --- | --- |
+| `paste.enable` | `true` | run paste adapter after clipboard commit |
+| `paste.shortcut` | `CTRL,V` | used by default Hyprland paste path when `paste_cmd` unset |
+| `clipboard_cmd` | `wl-copy --trim-newline` | command argv; no shell execution |
+| `paste_cmd` | empty | optional explicit paste command override |
+| `transcript.trailing_space` | `true` | append space after assembled transcript |
+
+### ASR
+
+| Key | Default | Notes |
+| --- | --- | --- |
+| `asr.automatic_punctuation` | `true` | punctuation hint |
+| `asr.language_code` | `en-US` | language code |
+| `asr.model` | empty | optional explicit model |
+
+### Indicator + cues
+
+| Key | Default | Notes |
+| --- | --- | --- |
+| `indicator.enable` | `true` | visual indicator switch |
+| `indicator.backend` | `hypr` | `hypr` or `desktop` |
+| `indicator.desktop_app_name` | `sotto-indicator` | required for desktop backend |
+| `indicator.sound_enable` | `true` | cue sounds switch |
+| `indicator.sound_start_file` | empty | optional WAV path |
+| `indicator.sound_stop_file` | empty | optional WAV path |
+| `indicator.sound_complete_file` | empty | optional WAV path |
+| `indicator.sound_cancel_file` | empty | optional WAV path |
+| `indicator.height` | `28` | indicator size parameter |
+| `indicator.text_recording` | `Recording…` | recording label |
+| `indicator.text_processing` | `Transcribing…` | processing label |
+| `indicator.text_transcribing` | alias | compatibility alias for `indicator.text_processing` |
+| `indicator.text_error` | `Speech recognition error` | error label |
+| `indicator.error_timeout_ms` | `1600` | `>= 0` |
+
+### Vocabulary and debug
+
+| Key | Default | Notes |
+| --- | --- | --- |
+| `vocab.global` | empty | comma-separated enabled vocabsets |
+| `vocab.max_phrases` | `1024` | hard cap after dedupe |
+| `debug.audio_dump` | `false` | write debug WAV artifacts |
+| `debug.grpc_dump` | `false` | write raw ASR response JSON |
+
+## Desktop-notification placement example (mako)
 
 ```conf
 [app-name="sotto-indicator"]
@@ -75,14 +92,7 @@ anchor=top-center
 default-timeout=0
 ```
 
-## Vocabulary behavior
-
-- `vocab.global` enables one or more `vocabset` blocks.
-- duplicate phrases across sets are deduped by highest boost.
-- dedupe conflicts emit warnings.
-- exceeding `vocab.max_phrases` is a hard error.
-
-## Example configuration
+## Example config
 
 ```conf
 riva_grpc = 127.0.0.1:50051
@@ -95,7 +105,7 @@ audio.fallback = default
 paste.enable = true
 paste.shortcut = CTRL,V
 clipboard_cmd = wl-copy --trim-newline
-paste_cmd =
+paste_cmd = ""
 
 asr.automatic_punctuation = true
 asr.language_code = en-US
@@ -106,10 +116,10 @@ indicator.enable = true
 indicator.backend = hypr
 indicator.desktop_app_name = sotto-indicator
 indicator.sound_enable = true
-indicator.sound_start_file = /home/user/sounds/toggle_on.wav
-indicator.sound_stop_file = /home/user/sounds/toggle_off.wav
-indicator.sound_complete_file = /home/user/sounds/complete.wav
-indicator.sound_cancel_file = /home/user/sounds/cancel.wav
+indicator.sound_start_file =
+indicator.sound_stop_file =
+indicator.sound_complete_file =
+indicator.sound_cancel_file =
 indicator.text_recording = Recording…
 indicator.text_processing = Transcribing…
 indicator.text_error = Speech recognition error

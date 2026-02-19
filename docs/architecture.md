@@ -1,92 +1,73 @@
-# sotto Architecture
+# Architecture
 
-`sotto` is a local-first ASR CLI with explicit component boundaries so behavior can be tested mostly in-process.
+`sotto` is a local-first ASR CLI with clear boundaries between state logic and side-effect adapters.
 
-## 1) High-level component map
+## Component map
 
 ```mermaid
 flowchart LR
-    Trigger["Trigger source\n(shell / hotkey / script)"] --> CLI["sotto CLI"]
+    Trigger["Trigger\n(shell / hotkey / script)"] --> CLI["CLI + command dispatch"]
     CLI --> IPC["IPC socket\n$XDG_RUNTIME_DIR/sotto.sock"]
-    IPC --> Session["Session Controller\n(FSM + lifecycle)"]
+    IPC --> Session["Session controller\n(FSM + lifecycle)"]
 
-    Session --> Audio["Audio capture\nPipeWire/Pulse"]
-    Audio --> Riva["ASR stream\nNVIDIA Riva gRPC"]
-    Riva --> Transcript["Transcript assembly\nnormalize + trailing space"]
-    Transcript --> Output["Output adapters\nclipboard + optional paste"]
+    Session --> Audio["Audio capture\n(PipeWire/Pulse)"]
+    Session --> ASR["Riva streaming client\n(gRPC)"]
+    ASR --> Transcript["Transcript assembly\n(normalize + trailing space)"]
+    Transcript --> Output["Output adapters\n(clipboard + paste)"]
 
-    Session --> Indicator["Indicator adapters\nnotify + audio cues"]
-    Session --> Logs["JSONL logging\n$XDG_STATE_HOME/sotto/log.jsonl"]
+    Session --> Indicator["Indicator adapters\n(hypr or desktop) + cues"]
+    Session --> Logs["JSONL logs\n$XDG_STATE_HOME/sotto/log.jsonl"]
 ```
 
-## 2) Package responsibilities
+## Package responsibilities
 
 | Package | Responsibility |
 | --- | --- |
-| `internal/cli` | Parse command/flag contract |
-| `internal/app` | Top-level execution and dispatch wiring |
-| `internal/ipc` | Single-instance socket ownership + command forwarding |
-| `internal/session` | Dictation lifecycle orchestration and FSM transitions |
-| `internal/audio` | Device discovery/selection + capture chunk stream |
-| `internal/riva` | gRPC stream setup + ASR response accumulation |
-| `internal/pipeline` | Bridge audio capture to ASR + debug artifact handling |
-| `internal/transcript` | Segment assembly/whitespace normalization |
-| `internal/output` | Clipboard and paste adapters |
-| `internal/indicator` | Notification and cue adapters |
-| `internal/doctor` | Environment/config/tool/readiness diagnostics |
-| `internal/logging` | Runtime JSONL log setup |
+| `internal/cli` | command/flag contract |
+| `internal/app` | top-level wiring and dispatch |
+| `internal/ipc` | single-instance socket lifecycle + forwarding |
+| `internal/fsm` | legal session transitions |
+| `internal/session` | lifecycle orchestration (`toggle`/`stop`/`cancel`) |
+| `internal/audio` | device discovery/selection + capture stream |
+| `internal/riva` | ASR stream transport + response accumulation |
+| `internal/pipeline` | audio-to-ASR bridge + debug artifacts |
+| `internal/transcript` | text normalization and assembly |
+| `internal/output` | clipboard + paste adapters |
+| `internal/indicator` | visual indicator + cue sound dispatch |
+| `internal/doctor` | environment/readiness checks |
+| `internal/logging` | session log bootstrap |
 
-## 3) Runtime flow (toggle -> stop)
+## Runtime flow (`toggle` -> `toggle`)
 
 ```mermaid
 sequenceDiagram
     participant T as Trigger
-    participant C as CLI (app.Runner)
-    participant I as IPC server
-    participant S as Session controller
-    participant A as Audio capture
-    participant R as Riva stream
-    participant O as Output committer
+    participant C as CLI
+    participant I as IPC
+    participant S as Session
+    participant A as Audio
+    participant R as Riva
+    participant O as Output
 
-    T->>C: sotto toggle
+    T->>C: sotto toggle (start)
     C->>I: acquire socket / become owner
-    C->>S: Run()
-    S->>A: Start capture
-    S->>R: Dial stream + send config
-    A-->>R: audio chunks (20ms)
+    I->>S: start
+    S->>A: start capture
+    S->>R: open stream + send config
+    A-->>R: PCM chunks
 
     T->>C: sotto toggle (stop)
-    C->>I: forward stop action
-    I->>S: actionStop
-    S->>R: close stream + collect transcript
-    S->>O: Commit(transcript)
-    O->>O: set clipboard
-    O->>O: optional paste adapter
-    S-->>C: Result (transcript/metrics/errors)
+    C->>I: send stop
+    I->>S: stop
+    S->>R: close stream + gather transcript
+    S->>O: commit(transcript)
 ```
 
-## 4) Session state model
+## Platform coupling (today)
 
-```mermaid
-stateDiagram-v2
-    [*] --> idle
-    idle --> recording: start
-    recording --> transcribing: stop
-    recording --> idle: cancel
-    transcribing --> idle: transcribed
-    transcribing --> error: stop/commit failure
-    recording --> error: start failure
-    error --> idle: reset
-```
+Current production path is Wayland + Hyprland:
 
-## 5) External dependencies
+- default paste path calls `hyprctl sendshortcut`
+- doctor checks require Hyprland session context
 
-- [PipeWire](https://pipewire.org/) for local audio capture backend
-- [NVIDIA Riva](https://developer.nvidia.com/riva) for local ASR serving
-- [NVIDIA Parakeet model family on Hugging Face](https://huggingface.co/models?search=nvidia%20parakeet)
-
-## 6) Testing boundary policy
-
-- Prefer real adapters/resources (temp files, unix sockets, `httptest`, PATH fixtures).
-- Avoid mock frameworks for in-repo behavior.
-- Full model inference remains local-manual verification (not CI).
+This coupling is intentionally explicit and isolated in `internal/hypr` + output/doctor adapters so additional desktop targets can be added without changing session/FSM logic.
