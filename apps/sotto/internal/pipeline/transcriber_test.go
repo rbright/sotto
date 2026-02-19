@@ -141,6 +141,16 @@ func TestSendLoopNoopWhenUninitialized(t *testing.T) {
 	transcriber.sendLoop() // should return immediately without panic
 }
 
+func TestSendLoopSignalsPipelineUnavailableWhenChannelPresent(t *testing.T) {
+	transcriber := NewTranscriber(config.Default(), nil)
+	transcriber.sendErrCh = make(chan error, 1)
+
+	transcriber.sendLoop()
+
+	err := <-transcriber.sendErrCh
+	require.ErrorIs(t, err, session.ErrPipelineUnavailable)
+}
+
 func TestCloseDebugArtifactsClosesFile(t *testing.T) {
 	file, err := os.CreateTemp(t.TempDir(), "*.json")
 	require.NoError(t, err)
