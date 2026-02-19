@@ -1,3 +1,4 @@
+// Package config resolves, parses, validates, and defaults sotto configuration.
 package config
 
 // Config is the fully materialized runtime configuration used by sotto.
