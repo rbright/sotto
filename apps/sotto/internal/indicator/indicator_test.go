@@ -25,9 +25,6 @@ printf '%s\n' "$*" >> "${HYPR_ARGS_FILE}"
 	cfg := config.Default().Indicator
 	cfg.SoundEnable = false
 	cfg.Enable = true
-	cfg.TextRecording = "Recording"
-	cfg.TextProcessing = "Transcribing"
-	cfg.TextError = "Speech error"
 
 	notify := NewHyprNotify(cfg, nil)
 	notify.ShowRecording(context.Background())
@@ -41,9 +38,9 @@ printf '%s\n' "$*" >> "${HYPR_ARGS_FILE}"
 	require.NoError(t, err)
 	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
 	require.Len(t, lines, 4)
-	require.Equal(t, "--quiet dispatch notify 1 300000 rgb(89b4fa) Recording", lines[0])
-	require.Equal(t, "--quiet dispatch notify 1 300000 rgb(cba6f7) Transcribing", lines[1])
-	require.Equal(t, "--quiet dispatch notify 3 1600 rgb(f38ba8) Speech error", lines[2])
+	require.Equal(t, "--quiet dispatch notify 1 300000 rgb(89b4fa) Recording…", lines[0])
+	require.Equal(t, "--quiet dispatch notify 1 300000 rgb(cba6f7) Transcribing…", lines[1])
+	require.Equal(t, "--quiet dispatch notify 3 1600 rgb(f38ba8) Speech recognition error", lines[2])
 	require.Equal(t, "--quiet dispatch dismissnotify", lines[3])
 }
 

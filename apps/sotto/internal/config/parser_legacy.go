@@ -242,54 +242,12 @@ func applyRootKey(cfg *Config, key, value string) error {
 			return fmt.Errorf("invalid bool for indicator.sound_enable: %w", err)
 		}
 		cfg.Indicator.SoundEnable = b
-	case "indicator.sound_start_file":
-		v, err := parseStringValue(value)
-		if err != nil {
-			return err
-		}
-		cfg.Indicator.SoundStartFile = v
-	case "indicator.sound_stop_file":
-		v, err := parseStringValue(value)
-		if err != nil {
-			return err
-		}
-		cfg.Indicator.SoundStopFile = v
-	case "indicator.sound_complete_file":
-		v, err := parseStringValue(value)
-		if err != nil {
-			return err
-		}
-		cfg.Indicator.SoundCompleteFile = v
-	case "indicator.sound_cancel_file":
-		v, err := parseStringValue(value)
-		if err != nil {
-			return err
-		}
-		cfg.Indicator.SoundCancelFile = v
 	case "indicator.height":
 		n, err := strconv.Atoi(value)
 		if err != nil {
 			return fmt.Errorf("invalid int for indicator.height: %w", err)
 		}
 		cfg.Indicator.Height = n
-	case "indicator.text_recording":
-		v, err := parseStringValue(value)
-		if err != nil {
-			return err
-		}
-		cfg.Indicator.TextRecording = v
-	case "indicator.text_processing", "indicator.text_transcribing":
-		v, err := parseStringValue(value)
-		if err != nil {
-			return err
-		}
-		cfg.Indicator.TextProcessing = v
-	case "indicator.text_error":
-		v, err := parseStringValue(value)
-		if err != nil {
-			return err
-		}
-		cfg.Indicator.TextError = v
 	case "indicator.error_timeout_ms":
 		n, err := strconv.Atoi(value)
 		if err != nil {

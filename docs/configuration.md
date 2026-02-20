@@ -82,16 +82,11 @@ Top-level object keys:
 | `indicator.backend` | `hypr` | `hypr` or `desktop` |
 | `indicator.desktop_app_name` | `sotto-indicator` | required for desktop backend |
 | `indicator.sound_enable` | `true` | cue sounds switch |
-| `indicator.sound_start_file` | empty | optional WAV path |
-| `indicator.sound_stop_file` | empty | optional WAV path |
-| `indicator.sound_complete_file` | empty | optional WAV path |
-| `indicator.sound_cancel_file` | empty | optional WAV path |
 | `indicator.height` | `28` | indicator size parameter |
-| `indicator.text_recording` | `Recording…` | recording label |
-| `indicator.text_processing` | `Transcribing…` | processing label |
-| `indicator.text_transcribing` | alias | compatibility alias for `indicator.text_processing` |
-| `indicator.text_error` | `Speech recognition error` | error label |
 | `indicator.error_timeout_ms` | `1600` | `>= 0` |
+
+Indicator text and cue assets are now application-owned (embedded in the binary) and are not user-configurable.
+Localization support exists in-code with an English catalog shipped by default.
 
 ### command keys
 
@@ -166,13 +161,6 @@ default-timeout=0
     "backend": "hypr",
     "desktop_app_name": "sotto-indicator",
     "sound_enable": true,
-    "sound_start_file": "",
-    "sound_stop_file": "",
-    "sound_complete_file": "",
-    "sound_cancel_file": "",
-    "text_recording": "Recording…",
-    "text_processing": "Transcribing…",
-    "text_error": "Speech recognition error",
     "error_timeout_ms": 1600
   },
 

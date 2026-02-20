@@ -1,17 +1,15 @@
 package indicator
 
 import (
+	"bytes"
 	"context"
+	"embed"
 	"fmt"
 	"math"
-	"os"
 	"os/exec"
-	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/jfreymuth/pulse"
-	"github.com/rbright/sotto/internal/config"
 )
 
 // cueKind identifies each cue event used by the session lifecycle.
@@ -34,6 +32,14 @@ type toneSpec struct {
 }
 
 var (
+	//go:embed assets/toggle_on.wav assets/toggle_off.wav assets/complete.wav assets/cancel.wav
+	cueAssetFS embed.FS
+
+	startCueWAV    = mustCueWAV("assets/toggle_on.wav")
+	stopCueWAV     = mustCueWAV("assets/toggle_off.wav")
+	completeCueWAV = mustCueWAV("assets/complete.wav")
+	cancelCueWAV   = mustCueWAV("assets/cancel.wav")
+
 	startCuePCM = synthesizeCue([]toneSpec{
 		{frequencyHz: 880, duration: 70 * time.Millisecond, volume: 0.18},
 		{frequencyHz: 1175, duration: 70 * time.Millisecond, volume: 0.18},
@@ -51,10 +57,10 @@ var (
 	})
 )
 
-// emitCue plays a configured WAV file when present, otherwise falls back to synthesis.
-func emitCue(kind cueKind, cfg config.IndicatorConfig) error {
-	if path := cuePath(kind, cfg); path != "" {
-		if err := playCueFile(path); err == nil {
+// emitCue plays an embedded WAV cue when available, then falls back to synthesis.
+func emitCue(kind cueKind) error {
+	if data := cueWAV(kind); len(data) > 0 {
+		if err := playCueData(data); err == nil {
 			return nil
 		}
 	}
@@ -67,59 +73,42 @@ func emitCue(kind cueKind, cfg config.IndicatorConfig) error {
 	return playSynthCue(samples)
 }
 
-// cuePath resolves the configured WAV path for one cue kind.
-func cuePath(kind cueKind, cfg config.IndicatorConfig) string {
-	var raw string
+func cueWAV(kind cueKind) []byte {
 	switch kind {
 	case cueStart:
-		raw = cfg.SoundStartFile
+		return startCueWAV
 	case cueStop:
-		raw = cfg.SoundStopFile
+		return stopCueWAV
 	case cueComplete:
-		raw = cfg.SoundCompleteFile
+		return completeCueWAV
 	case cueCancel:
-		raw = cfg.SoundCancelFile
+		return cancelCueWAV
 	default:
-		return ""
+		return nil
 	}
-	return expandUserPath(raw)
 }
 
-// expandUserPath expands `~` prefixes for user-provided cue file paths.
-func expandUserPath(raw string) string {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return ""
-	}
-	if raw == "~" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return raw
-		}
-		return home
-	}
-	if !strings.HasPrefix(raw, "~/") {
-		return raw
-	}
-	home, err := os.UserHomeDir()
+func mustCueWAV(path string) []byte {
+	data, err := cueAssetFS.ReadFile(path)
 	if err != nil {
-		return raw
+		panic(fmt.Sprintf("load embedded cue %q: %v", path, err))
 	}
-	return filepath.Join(home, strings.TrimPrefix(raw, "~/"))
+	return data
 }
 
-// playCueFile plays a configured WAV file through pw-play.
-func playCueFile(path string) error {
-	if _, err := os.Stat(path); err != nil {
-		return fmt.Errorf("stat cue file %q: %w", path, err)
+// playCueData plays an embedded WAV payload through pw-play.
+func playCueData(data []byte) error {
+	if len(data) == 0 {
+		return fmt.Errorf("embedded cue payload is empty")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "pw-play", "--media-role", "Notification", path)
+	cmd := exec.CommandContext(ctx, "pw-play", "--media-role", "Notification", "-")
+	cmd.Stdin = bytes.NewReader(data)
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("play cue file %q: %w", path, err)
+		return fmt.Errorf("play embedded cue: %w", err)
 	}
 	return nil
 }

@@ -27,8 +27,9 @@ type Controller interface {
 // HyprNotify is the concrete indicator implementation used by runtime sessions.
 // It can route notifications via Hyprland or desktop DBus based on config backend.
 type HyprNotify struct {
-	cfg    config.IndicatorConfig
-	logger *slog.Logger
+	cfg      config.IndicatorConfig
+	logger   *slog.Logger
+	messages messages
 
 	mu                    sync.Mutex
 	focusedMonitor        string
@@ -38,7 +39,11 @@ type HyprNotify struct {
 
 // NewHyprNotify creates an indicator controller from config.
 func NewHyprNotify(cfg config.IndicatorConfig, logger *slog.Logger) *HyprNotify {
-	return &HyprNotify{cfg: cfg, logger: logger}
+	return &HyprNotify{
+		cfg:      cfg,
+		logger:   logger,
+		messages: indicatorMessagesFromEnv(),
+	}
 }
 
 // ShowRecording signals recording start and emits the start cue.
@@ -49,7 +54,7 @@ func (h *HyprNotify) ShowRecording(ctx context.Context) {
 	}
 	h.ensureFocusedMonitor(ctx)
 	h.run(ctx, func(ctx context.Context) error {
-		return h.notify(ctx, 1, 300000, "rgb(89b4fa)", h.cfg.TextRecording)
+		return h.notify(ctx, 1, 300000, "rgb(89b4fa)", h.messages.recording)
 	})
 }
 
@@ -59,7 +64,7 @@ func (h *HyprNotify) ShowTranscribing(ctx context.Context) {
 		return
 	}
 	h.run(ctx, func(ctx context.Context) error {
-		return h.notify(ctx, 1, 300000, "rgb(cba6f7)", h.cfg.TextProcessing)
+		return h.notify(ctx, 1, 300000, "rgb(cba6f7)", h.messages.processing)
 	})
 }
 
@@ -69,7 +74,7 @@ func (h *HyprNotify) ShowError(ctx context.Context, text string) {
 		return
 	}
 	if text == "" {
-		text = h.cfg.TextError
+		text = h.messages.errorText
 	}
 	timeout := h.cfg.ErrorTimeoutMS
 	if timeout <= 0 {
@@ -198,7 +203,7 @@ func (h *HyprNotify) playCue(kind cueKind) {
 	go func() {
 		h.soundMu.Lock()
 		defer h.soundMu.Unlock()
-		if err := emitCue(kind, h.cfg); err != nil {
+		if err := emitCue(kind); err != nil {
 			h.log("indicator audio cue failed", err)
 		}
 	}()

@@ -43,19 +43,12 @@ type TranscriptConfig struct {
 
 // IndicatorConfig controls visual indicator and audio cue behavior.
 type IndicatorConfig struct {
-	Enable            bool
-	Backend           string
-	DesktopAppName    string
-	SoundEnable       bool
-	SoundStartFile    string
-	SoundStopFile     string
-	SoundCompleteFile string
-	SoundCancelFile   string
-	Height            int
-	TextRecording     string
-	TextProcessing    string
-	TextError         string
-	ErrorTimeoutMS    int
+	Enable         bool
+	Backend        string
+	DesktopAppName string
+	SoundEnable    bool
+	Height         int
+	ErrorTimeoutMS int
 }
 
 // CommandConfig stores a raw command string and its parsed argv form.

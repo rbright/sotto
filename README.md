@@ -26,7 +26,8 @@ Local-first speech-to-text CLI.
 - indicator backends:
   - `hypr` notifications
   - `desktop` (freedesktop notifications, e.g. mako)
-- optional WAV cue files for start/stop/complete/cancel
+- embedded cue WAV assets for start/stop/complete/cancel (not user-configurable)
+- built-in indicator localization scaffolding (English catalog currently shipped)
 - built-in environment diagnostics via `sotto doctor`
 
 ## Platform scope (current)
