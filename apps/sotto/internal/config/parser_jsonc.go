@@ -49,20 +49,12 @@ type jsoncTranscript struct {
 }
 
 type jsoncIndicator struct {
-	Enable            *bool   `json:"enable"`
-	Backend           *string `json:"backend"`
-	DesktopAppName    *string `json:"desktop_app_name"`
-	SoundEnable       *bool   `json:"sound_enable"`
-	SoundStartFile    *string `json:"sound_start_file"`
-	SoundStopFile     *string `json:"sound_stop_file"`
-	SoundCompleteFile *string `json:"sound_complete_file"`
-	SoundCancelFile   *string `json:"sound_cancel_file"`
-	Height            *int    `json:"height"`
-	TextRecording     *string `json:"text_recording"`
-	TextProcessing    *string `json:"text_processing"`
-	TextTranscribing  *string `json:"text_transcribing"`
-	TextError         *string `json:"text_error"`
-	ErrorTimeoutMS    *int    `json:"error_timeout_ms"`
+	Enable         *bool   `json:"enable"`
+	Backend        *string `json:"backend"`
+	DesktopAppName *string `json:"desktop_app_name"`
+	SoundEnable    *bool   `json:"sound_enable"`
+	Height         *int    `json:"height"`
+	ErrorTimeoutMS *int    `json:"error_timeout_ms"`
 }
 
 type jsoncVocab struct {
@@ -201,33 +193,8 @@ func (payload jsoncConfig) applyTo(cfg *Config) ([]Warning, error) {
 		if payload.Indicator.SoundEnable != nil {
 			cfg.Indicator.SoundEnable = *payload.Indicator.SoundEnable
 		}
-		if payload.Indicator.SoundStartFile != nil {
-			cfg.Indicator.SoundStartFile = *payload.Indicator.SoundStartFile
-		}
-		if payload.Indicator.SoundStopFile != nil {
-			cfg.Indicator.SoundStopFile = *payload.Indicator.SoundStopFile
-		}
-		if payload.Indicator.SoundCompleteFile != nil {
-			cfg.Indicator.SoundCompleteFile = *payload.Indicator.SoundCompleteFile
-		}
-		if payload.Indicator.SoundCancelFile != nil {
-			cfg.Indicator.SoundCancelFile = *payload.Indicator.SoundCancelFile
-		}
 		if payload.Indicator.Height != nil {
 			cfg.Indicator.Height = *payload.Indicator.Height
-		}
-		if payload.Indicator.TextRecording != nil {
-			cfg.Indicator.TextRecording = *payload.Indicator.TextRecording
-		}
-		if payload.Indicator.TextTranscribing != nil {
-			cfg.Indicator.TextProcessing = *payload.Indicator.TextTranscribing
-			warnings = append(warnings, Warning{Message: "indicator.text_transcribing is deprecated; use indicator.text_processing"})
-		}
-		if payload.Indicator.TextProcessing != nil {
-			cfg.Indicator.TextProcessing = *payload.Indicator.TextProcessing
-		}
-		if payload.Indicator.TextError != nil {
-			cfg.Indicator.TextError = *payload.Indicator.TextError
 		}
 		if payload.Indicator.ErrorTimeoutMS != nil {
 			cfg.Indicator.ErrorTimeoutMS = *payload.Indicator.ErrorTimeoutMS

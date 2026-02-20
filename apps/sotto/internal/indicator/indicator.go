@@ -27,8 +27,9 @@ type Controller interface {
 // HyprNotify is the concrete indicator implementation used by runtime sessions.
 // It can route notifications via Hyprland or desktop DBus based on config backend.
 type HyprNotify struct {
-	cfg    config.IndicatorConfig
-	logger *slog.Logger
+	cfg      config.IndicatorConfig
+	logger   *slog.Logger
+	messages messages
 
 	mu                    sync.Mutex
 	focusedMonitor        string
@@ -38,18 +39,22 @@ type HyprNotify struct {
 
 // NewHyprNotify creates an indicator controller from config.
 func NewHyprNotify(cfg config.IndicatorConfig, logger *slog.Logger) *HyprNotify {
-	return &HyprNotify{cfg: cfg, logger: logger}
+	return &HyprNotify{
+		cfg:      cfg,
+		logger:   logger,
+		messages: indicatorMessagesFromEnv(),
+	}
 }
 
 // ShowRecording signals recording start and emits the start cue.
 func (h *HyprNotify) ShowRecording(ctx context.Context) {
-	h.playCue(cueStart)
+	h.playCue(ctx, cueStart)
 	if !h.cfg.Enable {
 		return
 	}
 	h.ensureFocusedMonitor(ctx)
 	h.run(ctx, func(ctx context.Context) error {
-		return h.notify(ctx, 1, 300000, "rgb(89b4fa)", h.cfg.TextRecording)
+		return h.notify(ctx, 1, 300000, "rgb(89b4fa)", h.messages.recording)
 	})
 }
 
@@ -59,7 +64,7 @@ func (h *HyprNotify) ShowTranscribing(ctx context.Context) {
 		return
 	}
 	h.run(ctx, func(ctx context.Context) error {
-		return h.notify(ctx, 1, 300000, "rgb(cba6f7)", h.cfg.TextProcessing)
+		return h.notify(ctx, 1, 300000, "rgb(cba6f7)", h.messages.processing)
 	})
 }
 
@@ -69,7 +74,7 @@ func (h *HyprNotify) ShowError(ctx context.Context, text string) {
 		return
 	}
 	if text == "" {
-		text = h.cfg.TextError
+		text = h.messages.errorText
 	}
 	timeout := h.cfg.ErrorTimeoutMS
 	if timeout <= 0 {
@@ -81,18 +86,18 @@ func (h *HyprNotify) ShowError(ctx context.Context, text string) {
 }
 
 // CueStop emits the stop cue.
-func (h *HyprNotify) CueStop(context.Context) {
-	h.playCue(cueStop)
+func (h *HyprNotify) CueStop(ctx context.Context) {
+	h.playCue(ctx, cueStop)
 }
 
 // CueComplete emits the successful-commit cue.
-func (h *HyprNotify) CueComplete(context.Context) {
-	h.playCue(cueComplete)
+func (h *HyprNotify) CueComplete(ctx context.Context) {
+	h.playCue(ctx, cueComplete)
 }
 
 // CueCancel emits the cancel cue.
-func (h *HyprNotify) CueCancel(context.Context) {
-	h.playCue(cueCancel)
+func (h *HyprNotify) CueCancel(ctx context.Context) {
+	h.playCue(ctx, cueCancel)
 }
 
 // Hide dismisses the active indicator surface.
@@ -191,14 +196,17 @@ func (h *HyprNotify) run(ctx context.Context, fn func(context.Context) error) {
 }
 
 // playCue serializes cue playback and emits audio asynchronously.
-func (h *HyprNotify) playCue(kind cueKind) {
+func (h *HyprNotify) playCue(ctx context.Context, kind cueKind) {
 	if !h.cfg.SoundEnable {
 		return
+	}
+	if ctx == nil {
+		ctx = context.Background()
 	}
 	go func() {
 		h.soundMu.Lock()
 		defer h.soundMu.Unlock()
-		if err := emitCue(kind, h.cfg); err != nil {
+		if err := emitCue(ctx, kind); err != nil {
 			h.log("indicator audio cue failed", err)
 		}
 	}()

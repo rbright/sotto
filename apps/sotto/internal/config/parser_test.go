@@ -3,6 +3,8 @@ package config
 import (
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestParseValidJSONCConfig(t *testing.T) {
@@ -193,27 +195,6 @@ func TestParseIndicatorBackend(t *testing.T) {
 	}
 }
 
-func TestParseIndicatorTextTranscribingAliasWarning(t *testing.T) {
-	cfg, warnings, err := Parse(`{"indicator":{"text_transcribing":"Working..."}}`, Default())
-	if err != nil {
-		t.Fatalf("Parse() error = %v", err)
-	}
-	if cfg.Indicator.TextProcessing != "Working..." {
-		t.Fatalf("unexpected text processing value: %q", cfg.Indicator.TextProcessing)
-	}
-
-	found := false
-	for _, w := range warnings {
-		if strings.Contains(w.Message, "text_transcribing") {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Fatalf("expected alias warning, warnings=%+v", warnings)
-	}
-}
-
 func TestParseIndicatorSoundEnable(t *testing.T) {
 	cfg, _, err := Parse(`{"indicator":{"sound_enable":false}}`, Default())
 	if err != nil {
@@ -224,33 +205,16 @@ func TestParseIndicatorSoundEnable(t *testing.T) {
 	}
 }
 
-func TestParseIndicatorSoundFiles(t *testing.T) {
-	cfg, _, err := Parse(`
-{
-  "indicator": {
-    "sound_start_file": "/tmp/start.wav",
-    "sound_stop_file": "/tmp/stop.wav",
-    "sound_complete_file": "/tmp/complete.wav",
-    "sound_cancel_file": "/tmp/cancel.wav"
-  }
+func TestParseIndicatorTextKeysRejected(t *testing.T) {
+	_, _, err := Parse(`{"indicator":{"text_recording":"Recording"}}`, Default())
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "unknown field")
 }
-`, Default())
-	if err != nil {
-		t.Fatalf("Parse() error = %v", err)
-	}
 
-	if cfg.Indicator.SoundStartFile != "/tmp/start.wav" {
-		t.Fatalf("unexpected start file: %q", cfg.Indicator.SoundStartFile)
-	}
-	if cfg.Indicator.SoundStopFile != "/tmp/stop.wav" {
-		t.Fatalf("unexpected stop file: %q", cfg.Indicator.SoundStopFile)
-	}
-	if cfg.Indicator.SoundCompleteFile != "/tmp/complete.wav" {
-		t.Fatalf("unexpected complete file: %q", cfg.Indicator.SoundCompleteFile)
-	}
-	if cfg.Indicator.SoundCancelFile != "/tmp/cancel.wav" {
-		t.Fatalf("unexpected cancel file: %q", cfg.Indicator.SoundCancelFile)
-	}
+func TestParseIndicatorSoundFileKeysRejected(t *testing.T) {
+	_, _, err := Parse(`{"indicator":{"sound_start_file":"/tmp/start.wav"}}`, Default())
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "unknown field")
 }
 
 func TestParseInitializesNilVocabMap(t *testing.T) {
