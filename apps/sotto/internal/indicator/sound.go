@@ -58,11 +58,19 @@ var (
 )
 
 // emitCue plays an embedded WAV cue when available, then falls back to synthesis.
-func emitCue(kind cueKind) error {
+func emitCue(ctx context.Context, kind cueKind) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	if data := cueWAV(kind); len(data) > 0 {
-		if err := playCueData(data); err == nil {
+		if err := playCueData(ctx, data); err == nil {
 			return nil
 		}
+	}
+
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 
 	samples := cueSamples(kind)
@@ -97,15 +105,18 @@ func mustCueWAV(path string) []byte {
 }
 
 // playCueData plays an embedded WAV payload through pw-play.
-func playCueData(data []byte) error {
+func playCueData(ctx context.Context, data []byte) error {
 	if len(data) == 0 {
 		return fmt.Errorf("embedded cue payload is empty")
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	runCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "pw-play", "--media-role", "Notification", "-")
+	cmd := exec.CommandContext(runCtx, "pw-play", "--media-role", "Notification", "-")
 	cmd.Stdin = bytes.NewReader(data)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("play embedded cue: %w", err)

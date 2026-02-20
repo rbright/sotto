@@ -48,7 +48,7 @@ func NewHyprNotify(cfg config.IndicatorConfig, logger *slog.Logger) *HyprNotify 
 
 // ShowRecording signals recording start and emits the start cue.
 func (h *HyprNotify) ShowRecording(ctx context.Context) {
-	h.playCue(cueStart)
+	h.playCue(ctx, cueStart)
 	if !h.cfg.Enable {
 		return
 	}
@@ -86,18 +86,18 @@ func (h *HyprNotify) ShowError(ctx context.Context, text string) {
 }
 
 // CueStop emits the stop cue.
-func (h *HyprNotify) CueStop(context.Context) {
-	h.playCue(cueStop)
+func (h *HyprNotify) CueStop(ctx context.Context) {
+	h.playCue(ctx, cueStop)
 }
 
 // CueComplete emits the successful-commit cue.
-func (h *HyprNotify) CueComplete(context.Context) {
-	h.playCue(cueComplete)
+func (h *HyprNotify) CueComplete(ctx context.Context) {
+	h.playCue(ctx, cueComplete)
 }
 
 // CueCancel emits the cancel cue.
-func (h *HyprNotify) CueCancel(context.Context) {
-	h.playCue(cueCancel)
+func (h *HyprNotify) CueCancel(ctx context.Context) {
+	h.playCue(ctx, cueCancel)
 }
 
 // Hide dismisses the active indicator surface.
@@ -196,14 +196,17 @@ func (h *HyprNotify) run(ctx context.Context, fn func(context.Context) error) {
 }
 
 // playCue serializes cue playback and emits audio asynchronously.
-func (h *HyprNotify) playCue(kind cueKind) {
+func (h *HyprNotify) playCue(ctx context.Context, kind cueKind) {
 	if !h.cfg.SoundEnable {
 		return
+	}
+	if ctx == nil {
+		ctx = context.Background()
 	}
 	go func() {
 		h.soundMu.Lock()
 		defer h.soundMu.Unlock()
-		if err := emitCue(kind); err != nil {
+		if err := emitCue(ctx, kind); err != nil {
 			h.log("indicator audio cue failed", err)
 		}
 	}()

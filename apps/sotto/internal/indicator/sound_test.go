@@ -1,6 +1,8 @@
 package indicator
 
 import (
+	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -36,4 +38,13 @@ func TestSynthesizeToneInvalidSpecReturnsEmpty(t *testing.T) {
 func TestSamplesForDuration(t *testing.T) {
 	require.Equal(t, 0, samplesForDuration(0))
 	require.Greater(t, samplesForDuration(25*time.Millisecond), 0)
+}
+
+func TestEmitCueRespectsCancelledContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := emitCue(ctx, cueStart)
+	require.Error(t, err)
+	require.True(t, errors.Is(err, context.Canceled))
 }

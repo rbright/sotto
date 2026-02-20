@@ -3,6 +3,8 @@ package config
 import (
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestParseValidJSONCConfig(t *testing.T) {
@@ -205,22 +207,14 @@ func TestParseIndicatorSoundEnable(t *testing.T) {
 
 func TestParseIndicatorTextKeysRejected(t *testing.T) {
 	_, _, err := Parse(`{"indicator":{"text_recording":"Recording"}}`, Default())
-	if err == nil {
-		t.Fatal("expected error for indicator.text_recording")
-	}
-	if !strings.Contains(err.Error(), "unknown field") {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "unknown field")
 }
 
 func TestParseIndicatorSoundFileKeysRejected(t *testing.T) {
 	_, _, err := Parse(`{"indicator":{"sound_start_file":"/tmp/start.wav"}}`, Default())
-	if err == nil {
-		t.Fatal("expected error for indicator.sound_start_file")
-	}
-	if !strings.Contains(err.Error(), "unknown field") {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "unknown field")
 }
 
 func TestParseInitializesNilVocabMap(t *testing.T) {
