@@ -50,7 +50,7 @@ func TestRecordResponseTracksInterimThenFinal(t *testing.T) {
 	require.Equal(t, []string{"hello world"}, s.segments)
 }
 
-func TestRecordResponseCommitsInterimAcrossPauseLikeReset(t *testing.T) {
+func TestRecordResponseReplacesDivergentInterimWithoutPrecommit(t *testing.T) {
 	s := &Stream{}
 
 	s.recordResponse(&asrpb.StreamingRecognizeResponse{
@@ -67,8 +67,37 @@ func TestRecordResponseCommitsInterimAcrossPauseLikeReset(t *testing.T) {
 		}},
 	})
 
+	require.Empty(t, s.segments)
 	segments := collectSegments(s.segments, s.lastInterim)
-	require.Equal(t, []string{"first phrase", "second phrase"}, segments)
+	require.Equal(t, []string{"second phrase"}, segments)
+}
+
+func TestRecordResponseDoesNotPrependStaleInterimBeforeFinal(t *testing.T) {
+	s := &Stream{}
+
+	s.recordResponse(&asrpb.StreamingRecognizeResponse{
+		Results: []*asrpb.StreamingRecognitionResult{{
+			IsFinal:      false,
+			Alternatives: []*asrpb.SpeechRecognitionAlternative{{Transcript: "stale words"}},
+		}},
+	})
+
+	s.recordResponse(&asrpb.StreamingRecognizeResponse{
+		Results: []*asrpb.StreamingRecognitionResult{{
+			IsFinal:      false,
+			Alternatives: []*asrpb.SpeechRecognitionAlternative{{Transcript: "hello world"}},
+		}},
+	})
+
+	s.recordResponse(&asrpb.StreamingRecognizeResponse{
+		Results: []*asrpb.StreamingRecognitionResult{{
+			IsFinal:      true,
+			Alternatives: []*asrpb.SpeechRecognitionAlternative{{Transcript: "hello world"}},
+		}},
+	})
+
+	segments := collectSegments(s.segments, s.lastInterim)
+	require.Equal(t, []string{"hello world"}, segments)
 }
 
 func TestAppendSegmentDedupAndPrefixMerge(t *testing.T) {

@@ -56,9 +56,9 @@ func (s *Stream) recordResponse(resp *asrpb.StreamingRecognizeResponse) {
 			continue
 		}
 
-		if s.lastInterim != "" && !isInterimContinuation(s.lastInterim, transcript) {
-			s.segments = appendSegment(s.segments, s.lastInterim)
-		}
+		// Keep only the latest interim hypothesis. Riva can reset interim text
+		// boundaries between updates; pre-committing the prior interim here can
+		// introduce duplicated or stale leading segments in the final transcript.
 		s.lastInterim = transcript
 	}
 }
