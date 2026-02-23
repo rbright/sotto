@@ -26,6 +26,14 @@ func TestCollectSegmentsFallsBackToInterim(t *testing.T) {
 	require.Equal(t, []string{"tentative words"}, got)
 }
 
+func TestCollectSegmentsMergesTrailingInterimWithCommittedSegments(t *testing.T) {
+	got := collectSegments([]string{"hello world"}, "hello world and beyond")
+	require.Equal(t, []string{"hello world and beyond"}, got)
+
+	got = collectSegments([]string{"hello world"}, "hello")
+	require.Equal(t, []string{"hello world"}, got)
+}
+
 func TestRecordResponseTracksInterimThenFinal(t *testing.T) {
 	s := &Stream{}
 
@@ -37,6 +45,7 @@ func TestRecordResponseTracksInterimThenFinal(t *testing.T) {
 	})
 
 	require.Equal(t, "hello wor", s.lastInterim)
+	require.Equal(t, 1, s.lastInterimAge)
 	require.Empty(t, s.segments)
 
 	s.recordResponse(&asrpb.StreamingRecognizeResponse{
@@ -47,6 +56,7 @@ func TestRecordResponseTracksInterimThenFinal(t *testing.T) {
 	})
 
 	require.Empty(t, s.lastInterim)
+	require.Equal(t, 0, s.lastInterimAge)
 	require.Equal(t, []string{"hello world"}, s.segments)
 }
 
@@ -72,13 +82,12 @@ func TestRecordResponseReplacesDivergentInterimWithoutPrecommit(t *testing.T) {
 	require.Equal(t, []string{"second phrase"}, segments)
 }
 
-func TestRecordResponseDoesNotCommitDivergentInterimBeforeFinal(t *testing.T) {
+func TestRecordResponseCommitsInterimChainOnDivergence(t *testing.T) {
 	s := &Stream{}
 
 	s.recordResponse(&asrpb.StreamingRecognizeResponse{
 		Results: []*asrpb.StreamingRecognitionResult{{
 			IsFinal:      false,
-			Stability:    0.95,
 			Alternatives: []*asrpb.SpeechRecognitionAlternative{{Transcript: "first phrase"}},
 		}},
 	})
@@ -86,14 +95,40 @@ func TestRecordResponseDoesNotCommitDivergentInterimBeforeFinal(t *testing.T) {
 	s.recordResponse(&asrpb.StreamingRecognizeResponse{
 		Results: []*asrpb.StreamingRecognitionResult{{
 			IsFinal:      false,
-			Stability:    0.20,
+			Alternatives: []*asrpb.SpeechRecognitionAlternative{{Transcript: "first phrase extended"}},
+		}},
+	})
+
+	s.recordResponse(&asrpb.StreamingRecognizeResponse{
+		Results: []*asrpb.StreamingRecognitionResult{{
+			IsFinal:      false,
 			Alternatives: []*asrpb.SpeechRecognitionAlternative{{Transcript: "second phrase"}},
 		}},
 	})
 
-	require.Empty(t, s.segments)
+	require.Equal(t, []string{"first phrase extended"}, s.segments)
+	require.Equal(t, "second phrase", s.lastInterim)
+	require.Equal(t, 1, s.lastInterimAge)
 	segments := collectSegments(s.segments, s.lastInterim)
-	require.Equal(t, []string{"second phrase"}, segments)
+	require.Equal(t, []string{"first phrase extended", "second phrase"}, segments)
+}
+
+func TestRecordResponseBuildsMultipleSegmentsAcrossLongInterimStream(t *testing.T) {
+	s := &Stream{}
+
+	responses := []*asrpb.StreamingRecognizeResponse{
+		{Results: []*asrpb.StreamingRecognitionResult{{IsFinal: false, Alternatives: []*asrpb.SpeechRecognitionAlternative{{Transcript: "alpha"}}}}},
+		{Results: []*asrpb.StreamingRecognitionResult{{IsFinal: false, Alternatives: []*asrpb.SpeechRecognitionAlternative{{Transcript: "alpha one"}}}}},
+		{Results: []*asrpb.StreamingRecognitionResult{{IsFinal: false, Alternatives: []*asrpb.SpeechRecognitionAlternative{{Transcript: "beta"}}}}},
+		{Results: []*asrpb.StreamingRecognitionResult{{IsFinal: false, Alternatives: []*asrpb.SpeechRecognitionAlternative{{Transcript: "beta two"}}}}},
+		{Results: []*asrpb.StreamingRecognitionResult{{IsFinal: false, Alternatives: []*asrpb.SpeechRecognitionAlternative{{Transcript: "gamma"}}}}},
+	}
+	for _, resp := range responses {
+		s.recordResponse(resp)
+	}
+
+	segments := collectSegments(s.segments, s.lastInterim)
+	require.Equal(t, []string{"alpha one", "beta two", "gamma"}, segments)
 }
 
 func TestRecordResponseDoesNotPrependStaleInterimBeforeFinal(t *testing.T) {
@@ -102,7 +137,6 @@ func TestRecordResponseDoesNotPrependStaleInterimBeforeFinal(t *testing.T) {
 	s.recordResponse(&asrpb.StreamingRecognizeResponse{
 		Results: []*asrpb.StreamingRecognitionResult{{
 			IsFinal:      false,
-			Stability:    0.05,
 			Alternatives: []*asrpb.SpeechRecognitionAlternative{{Transcript: "stale words"}},
 		}},
 	})
@@ -110,7 +144,6 @@ func TestRecordResponseDoesNotPrependStaleInterimBeforeFinal(t *testing.T) {
 	s.recordResponse(&asrpb.StreamingRecognizeResponse{
 		Results: []*asrpb.StreamingRecognitionResult{{
 			IsFinal:      false,
-			Stability:    0.30,
 			Alternatives: []*asrpb.SpeechRecognitionAlternative{{Transcript: "hello world"}},
 		}},
 	})
@@ -132,7 +165,6 @@ func TestRecordResponseTreatsSuffixCorrectionAsContinuation(t *testing.T) {
 	s.recordResponse(&asrpb.StreamingRecognizeResponse{
 		Results: []*asrpb.StreamingRecognitionResult{{
 			IsFinal:      false,
-			Stability:    0.95,
 			Alternatives: []*asrpb.SpeechRecognitionAlternative{{Transcript: "replace reply replied on the review thread with details"}},
 		}},
 	})
@@ -140,7 +172,6 @@ func TestRecordResponseTreatsSuffixCorrectionAsContinuation(t *testing.T) {
 	s.recordResponse(&asrpb.StreamingRecognizeResponse{
 		Results: []*asrpb.StreamingRecognitionResult{{
 			IsFinal:      false,
-			Stability:    0.95,
 			Alternatives: []*asrpb.SpeechRecognitionAlternative{{Transcript: "replied on the review thread with details"}},
 		}},
 	})
@@ -167,9 +198,31 @@ func TestAppendSegmentDedupAndPrefixMerge(t *testing.T) {
 	require.Equal(t, []string{"hello world", "new sentence"}, segments)
 }
 
-func TestCleanSegment(t *testing.T) {
+func TestInterimHelpers(t *testing.T) {
 	require.Equal(t, "hello world", cleanSegment("  hello\n world  "))
 	require.Empty(t, cleanSegment("   \n\t"))
+
+	continuationCases := []struct {
+		name     string
+		previous string
+		current  string
+		want     bool
+	}{
+		{name: "prefix extension", previous: "hello", current: "hello world", want: true},
+		{name: "suffix correction", previous: "replace reply replied on thread", current: "replied on thread", want: true},
+		{name: "shared prefix majority", previous: "one two three", current: "one two four", want: true},
+		{name: "shared suffix majority", previous: "noise at start hello world", current: "hello world", want: true},
+		{name: "divergent phrases", previous: "first phrase", current: "second phrase", want: false},
+	}
+	for _, tc := range continuationCases {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.want, isInterimContinuation(tc.previous, tc.current))
+		})
+	}
+
+	require.False(t, shouldCommitInterimBoundary("", 5))
+	require.False(t, shouldCommitInterimBoundary("first phrase", 1))
+	require.True(t, shouldCommitInterimBoundary("first phrase", 2))
 }
 
 func TestDialStreamEndToEndWithDebugSinkAndSpeechContexts(t *testing.T) {
