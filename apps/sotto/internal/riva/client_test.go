@@ -72,7 +72,7 @@ func TestRecordResponseReplacesDivergentInterimWithoutPrecommit(t *testing.T) {
 	require.Equal(t, []string{"second phrase"}, segments)
 }
 
-func TestRecordResponseCommitsStableDivergentInterimForPartialRecovery(t *testing.T) {
+func TestRecordResponseDoesNotCommitDivergentInterimBeforeFinal(t *testing.T) {
 	s := &Stream{}
 
 	s.recordResponse(&asrpb.StreamingRecognizeResponse{
@@ -91,9 +91,9 @@ func TestRecordResponseCommitsStableDivergentInterimForPartialRecovery(t *testin
 		}},
 	})
 
-	require.Equal(t, []string{"first phrase"}, s.segments)
+	require.Empty(t, s.segments)
 	segments := collectSegments(s.segments, s.lastInterim)
-	require.Equal(t, []string{"first phrase", "second phrase"}, segments)
+	require.Equal(t, []string{"second phrase"}, segments)
 }
 
 func TestRecordResponseDoesNotPrependStaleInterimBeforeFinal(t *testing.T) {
@@ -167,19 +167,9 @@ func TestAppendSegmentDedupAndPrefixMerge(t *testing.T) {
 	require.Equal(t, []string{"hello world", "new sentence"}, segments)
 }
 
-func TestCleanSegmentAndInterimContinuation(t *testing.T) {
+func TestCleanSegment(t *testing.T) {
 	require.Equal(t, "hello world", cleanSegment("  hello\n world  "))
 	require.Empty(t, cleanSegment("   \n\t"))
-
-	require.True(t, isInterimContinuation("hello", "hello world"))
-	require.True(t, isInterimContinuation("hello world", "hello"))
-	require.True(t, isInterimContinuation("replace reply replied on thread", "replied on thread"))
-	require.False(t, isInterimContinuation("first phrase", "second phrase"))
-
-	require.False(t, shouldCommitPriorInterimOnDivergence("first phrase", 0.2, "second phrase"))
-	require.True(t, shouldCommitPriorInterimOnDivergence("first phrase", 0.9, "second phrase"))
-	require.True(t, shouldCommitPriorInterimOnDivergence("Done.", 0.1, "new sentence"))
-	require.False(t, shouldCommitPriorInterimOnDivergence("replace reply replied on thread", 0.95, "replied on thread"))
 }
 
 func TestDialStreamEndToEndWithDebugSinkAndSpeechContexts(t *testing.T) {

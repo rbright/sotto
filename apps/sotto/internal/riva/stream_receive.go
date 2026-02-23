@@ -53,14 +53,10 @@ func (s *Stream) recordResponse(resp *asrpb.StreamingRecognizeResponse) {
 		if result.GetIsFinal() {
 			s.segments = appendSegment(s.segments, transcript)
 			s.lastInterim = ""
-			s.lastInterimStability = 0
 			continue
 		}
 
-		if shouldCommitPriorInterimOnDivergence(s.lastInterim, s.lastInterimStability, transcript) {
-			s.segments = appendSegment(s.segments, s.lastInterim)
-		}
+		// Keep only the latest interim hypothesis within a toggle session.
 		s.lastInterim = transcript
-		s.lastInterimStability = result.GetStability()
 	}
 }
