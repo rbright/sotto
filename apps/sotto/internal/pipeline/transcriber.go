@@ -19,6 +19,21 @@ import (
 	"github.com/rbright/sotto/internal/transcript"
 )
 
+// captureClient is the audio-capture contract needed by the transcriber.
+type captureClient interface {
+	Stop() error
+	Chunks() <-chan []byte
+	BytesCaptured() int64
+	RawPCM() []byte
+}
+
+// streamClient is the ASR-stream contract needed by the transcriber.
+type streamClient interface {
+	SendAudio([]byte) error
+	CloseAndCollect(context.Context) ([]string, time.Duration, error)
+	Cancel() error
+}
+
 // Transcriber owns one end-to-end capture -> ASR -> transcript pipeline instance.
 type Transcriber struct {
 	cfg    config.Config
@@ -28,17 +43,33 @@ type Transcriber struct {
 	started bool
 
 	selection audio.Selection
-	capture   *audio.Capture
-	stream    *riva.Stream
+	capture   captureClient
+	stream    streamClient
 
 	sendErrCh chan error
+
+	selectDevice func(context.Context, string, string) (audio.Selection, error)
+	startCapture func(context.Context, audio.Device) (captureClient, error)
+	dialStream   func(context.Context, riva.StreamConfig) (streamClient, error)
 
 	debugGRPCFile *os.File
 }
 
 // NewTranscriber constructs a pipeline transcriber from runtime config.
 func NewTranscriber(cfg config.Config, logger *slog.Logger) *Transcriber {
-	return &Transcriber{cfg: cfg, logger: logger}
+	return &Transcriber{
+		cfg:    cfg,
+		logger: logger,
+		selectDevice: func(ctx context.Context, input string, fallback string) (audio.Selection, error) {
+			return audio.SelectDevice(ctx, input, fallback)
+		},
+		startCapture: func(ctx context.Context, device audio.Device) (captureClient, error) {
+			return audio.StartCapture(ctx, device)
+		},
+		dialStream: func(ctx context.Context, cfg riva.StreamConfig) (streamClient, error) {
+			return riva.DialStream(ctx, cfg)
+		},
+	}
 }
 
 // Start resolves device selection, opens Riva stream, and starts audio capture.
@@ -50,7 +81,7 @@ func (t *Transcriber) Start(ctx context.Context) error {
 		return fmt.Errorf("transcriber already started")
 	}
 
-	selection, err := audio.SelectDevice(ctx, t.cfg.Audio.Input, t.cfg.Audio.Fallback)
+	selection, err := t.selectDevice(ctx, t.cfg.Audio.Input, t.cfg.Audio.Fallback)
 	if err != nil {
 		return err
 	}
@@ -77,7 +108,7 @@ func (t *Transcriber) Start(ctx context.Context) error {
 		rivaPhrases = append(rivaPhrases, riva.SpeechPhrase{Phrase: phrase.Phrase, Boost: phrase.Boost})
 	}
 
-	stream, err := riva.DialStream(ctx, riva.StreamConfig{
+	stream, err := t.dialStream(ctx, riva.StreamConfig{
 		Endpoint:             t.cfg.RivaGRPC,
 		LanguageCode:         t.cfg.ASR.LanguageCode,
 		Model:                t.cfg.ASR.Model,
@@ -97,7 +128,7 @@ func (t *Transcriber) Start(ctx context.Context) error {
 	}
 	t.stream = stream
 
-	capture, err := audio.StartCapture(ctx, selection.Device)
+	capture, err := t.startCapture(ctx, selection.Device)
 	if err != nil {
 		_ = stream.Cancel()
 		t.closeDebugArtifactsLocked()
