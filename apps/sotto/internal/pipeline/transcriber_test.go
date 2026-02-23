@@ -3,12 +3,15 @@ package pipeline
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/rbright/sotto/internal/audio"
 	"github.com/rbright/sotto/internal/config"
+	"github.com/rbright/sotto/internal/riva"
 	"github.com/rbright/sotto/internal/session"
 	"github.com/stretchr/testify/require"
 )
@@ -178,4 +181,258 @@ func TestCloseDebugArtifactsLockedClosesFileWhileMutexHeld(t *testing.T) {
 	_, err = file.Write([]byte("x"))
 	require.Error(t, err)
 	require.Nil(t, transcriber.debugGRPCFile)
+}
+
+func TestStartWiresDependenciesAndBootsSendLoop(t *testing.T) {
+	cfg := config.Default()
+	transcriber := NewTranscriber(cfg, nil)
+
+	chunks := make(chan []byte)
+	close(chunks)
+	capture := &fakeCapture{chunks: chunks}
+	stream := &fakeStream{}
+
+	transcriber.selectDevice = func(context.Context, string, string) (audio.Selection, error) {
+		return audio.Selection{Device: audio.Device{ID: "mic-1", Description: "Mic"}}, nil
+	}
+	transcriber.dialStream = func(context.Context, riva.StreamConfig) (streamClient, error) {
+		return stream, nil
+	}
+	transcriber.startCapture = func(context.Context, audio.Device) (captureClient, error) {
+		return capture, nil
+	}
+
+	err := transcriber.Start(context.Background())
+	require.NoError(t, err)
+	require.True(t, transcriber.started)
+	require.Equal(t, "mic-1", transcriber.selection.Device.ID)
+	require.NotNil(t, transcriber.sendErrCh)
+
+	require.NoError(t, transcriber.Cancel(context.Background()))
+}
+
+func TestStartFailsOnSpeechPhraseBuildError(t *testing.T) {
+	cfg := config.Default()
+	cfg.Vocab.GlobalSets = []string{"missing"}
+
+	transcriber := NewTranscriber(cfg, nil)
+	transcriber.selectDevice = func(context.Context, string, string) (audio.Selection, error) {
+		return audio.Selection{Device: audio.Device{ID: "mic-1", Description: "Mic"}}, nil
+	}
+	transcriber.dialStream = func(context.Context, riva.StreamConfig) (streamClient, error) {
+		t.Fatal("dialStream should not be called when speech phrase build fails")
+		return nil, nil
+	}
+	transcriber.startCapture = func(context.Context, audio.Device) (captureClient, error) {
+		t.Fatal("startCapture should not be called when speech phrase build fails")
+		return nil, nil
+	}
+
+	err := transcriber.Start(context.Background())
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "build speech contexts")
+	require.False(t, transcriber.started)
+}
+
+func TestStopAndTranscribeSuccessPath(t *testing.T) {
+	cfg := config.Default()
+	cfg.Transcript.TrailingSpace = true
+
+	capture := &fakeCapture{
+		chunks: make(chan []byte),
+		raw:    []byte{1, 2, 3, 4},
+		bytes:  4096,
+	}
+	close(capture.chunks)
+
+	stream := &fakeStream{
+		closeSegments: []string{"hello", "world"},
+		closeLatency:  12 * time.Millisecond,
+	}
+
+	transcriber := NewTranscriber(cfg, nil)
+	transcriber.started = true
+	transcriber.selection = audio.Selection{Device: audio.Device{ID: "mic-1", Description: "Mic"}}
+	transcriber.capture = capture
+	transcriber.stream = stream
+	transcriber.sendErrCh = make(chan error, 1)
+	transcriber.sendErrCh <- nil
+
+	result, err := transcriber.StopAndTranscribe(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, "hello world ", result.Transcript)
+	require.Equal(t, "Mic (mic-1)", result.AudioDevice)
+	require.Equal(t, int64(4096), result.BytesCaptured)
+	require.Equal(t, 12*time.Millisecond, result.GRPCLatency)
+	require.True(t, capture.stopCalled)
+	require.False(t, transcriber.started)
+	require.Nil(t, transcriber.capture)
+	require.Nil(t, transcriber.stream)
+}
+
+func TestStopAndTranscribeSendErrorCancelsStream(t *testing.T) {
+	capture := &fakeCapture{
+		chunks: make(chan []byte),
+		raw:    []byte{1, 2, 3, 4},
+		bytes:  2048,
+	}
+	close(capture.chunks)
+	stream := &fakeStream{}
+
+	transcriber := NewTranscriber(config.Default(), nil)
+	transcriber.started = true
+	transcriber.selection = audio.Selection{Device: audio.Device{ID: "mic-1", Description: "Mic"}}
+	transcriber.capture = capture
+	transcriber.stream = stream
+	transcriber.sendErrCh = make(chan error, 1)
+	transcriber.sendErrCh <- errors.New("send failed")
+
+	result, err := transcriber.StopAndTranscribe(context.Background())
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "send audio stream")
+	require.Equal(t, "Mic (mic-1)", result.AudioDevice)
+	require.True(t, stream.cancelCalled)
+}
+
+func TestStopAndTranscribeCollectErrorIncludesLatency(t *testing.T) {
+	capture := &fakeCapture{
+		chunks: make(chan []byte),
+		raw:    []byte{1, 2, 3, 4},
+		bytes:  1024,
+	}
+	close(capture.chunks)
+
+	stream := &fakeStream{closeErr: errors.New("close failed"), closeLatency: 77 * time.Millisecond}
+
+	transcriber := NewTranscriber(config.Default(), nil)
+	transcriber.started = true
+	transcriber.selection = audio.Selection{Device: audio.Device{ID: "mic-1", Description: "Mic"}}
+	transcriber.capture = capture
+	transcriber.stream = stream
+	transcriber.sendErrCh = make(chan error, 1)
+	transcriber.sendErrCh <- nil
+
+	result, err := transcriber.StopAndTranscribe(context.Background())
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "collect final transcript")
+	require.Equal(t, 77*time.Millisecond, result.GRPCLatency)
+}
+
+func TestCancelStopsCaptureAndStreamAndResetsState(t *testing.T) {
+	capture := &fakeCapture{chunks: make(chan []byte), raw: []byte{1}, bytes: 1}
+	close(capture.chunks)
+	stream := &fakeStream{}
+
+	transcriber := NewTranscriber(config.Default(), nil)
+	transcriber.started = true
+	transcriber.capture = capture
+	transcriber.stream = stream
+	transcriber.sendErrCh = make(chan error, 1)
+
+	err := transcriber.Cancel(context.Background())
+	require.NoError(t, err)
+	require.True(t, capture.stopCalled)
+	require.True(t, stream.cancelCalled)
+	require.False(t, transcriber.started)
+	require.Nil(t, transcriber.capture)
+	require.Nil(t, transcriber.stream)
+	require.Nil(t, transcriber.sendErrCh)
+}
+
+func TestSendLoopForwardsChunksAndSignalsNil(t *testing.T) {
+	chunks := make(chan []byte, 4)
+	chunks <- []byte{1, 2, 3}
+	chunks <- []byte{}
+	chunks <- []byte{4, 5}
+	close(chunks)
+
+	capture := &fakeCapture{chunks: chunks}
+	stream := &fakeStream{}
+	transcriber := NewTranscriber(config.Default(), nil)
+	transcriber.capture = capture
+	transcriber.stream = stream
+	transcriber.sendErrCh = make(chan error, 1)
+
+	transcriber.sendLoop()
+
+	err := <-transcriber.sendErrCh
+	require.NoError(t, err)
+	require.Equal(t, 2, len(stream.sendChunks))
+	require.Equal(t, []byte{1, 2, 3}, stream.sendChunks[0])
+	require.Equal(t, []byte{4, 5}, stream.sendChunks[1])
+}
+
+func TestSendLoopStopsCaptureOnSendError(t *testing.T) {
+	chunks := make(chan []byte, 2)
+	chunks <- []byte{1, 2, 3}
+	close(chunks)
+
+	capture := &fakeCapture{chunks: chunks}
+	stream := &fakeStream{sendErr: errors.New("boom")}
+	transcriber := NewTranscriber(config.Default(), nil)
+	transcriber.capture = capture
+	transcriber.stream = stream
+	transcriber.sendErrCh = make(chan error, 1)
+
+	transcriber.sendLoop()
+
+	err := <-transcriber.sendErrCh
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "boom")
+	require.True(t, capture.stopCalled)
+}
+
+type fakeCapture struct {
+	chunks     chan []byte
+	stopErr    error
+	raw        []byte
+	bytes      int64
+	stopCalled bool
+}
+
+func (f *fakeCapture) Stop() error {
+	f.stopCalled = true
+	return f.stopErr
+}
+
+func (f *fakeCapture) Chunks() <-chan []byte { return f.chunks }
+
+func (f *fakeCapture) BytesCaptured() int64 { return f.bytes }
+
+func (f *fakeCapture) RawPCM() []byte {
+	out := make([]byte, len(f.raw))
+	copy(out, f.raw)
+	return out
+}
+
+type fakeStream struct {
+	sendErr       error
+	closeErr      error
+	closeSegments []string
+	closeLatency  time.Duration
+	cancelCalled  bool
+	sendChunks    [][]byte
+}
+
+func (f *fakeStream) SendAudio(chunk []byte) error {
+	if f.sendErr != nil {
+		return f.sendErr
+	}
+	copyChunk := make([]byte, len(chunk))
+	copy(copyChunk, chunk)
+	f.sendChunks = append(f.sendChunks, copyChunk)
+	return nil
+}
+
+func (f *fakeStream) CloseAndCollect(context.Context) ([]string, time.Duration, error) {
+	if f.closeErr != nil {
+		return nil, f.closeLatency, f.closeErr
+	}
+	segments := append([]string(nil), f.closeSegments...)
+	return segments, f.closeLatency, nil
+}
+
+func (f *fakeStream) Cancel() error {
+	f.cancelCalled = true
+	return nil
 }
