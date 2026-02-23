@@ -53,12 +53,14 @@ func (s *Stream) recordResponse(resp *asrpb.StreamingRecognizeResponse) {
 		if result.GetIsFinal() {
 			s.segments = appendSegment(s.segments, transcript)
 			s.lastInterim = ""
+			s.lastInterimStability = 0
 			continue
 		}
 
-		if s.lastInterim != "" && !isInterimContinuation(s.lastInterim, transcript) {
+		if shouldCommitPriorInterimOnDivergence(s.lastInterim, s.lastInterimStability, transcript) {
 			s.segments = appendSegment(s.segments, s.lastInterim)
 		}
 		s.lastInterim = transcript
+		s.lastInterimStability = result.GetStability()
 	}
 }

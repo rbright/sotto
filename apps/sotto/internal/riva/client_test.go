@@ -50,7 +50,7 @@ func TestRecordResponseTracksInterimThenFinal(t *testing.T) {
 	require.Equal(t, []string{"hello world"}, s.segments)
 }
 
-func TestRecordResponseCommitsInterimAcrossPauseLikeReset(t *testing.T) {
+func TestRecordResponseReplacesDivergentInterimWithoutPrecommit(t *testing.T) {
 	s := &Stream{}
 
 	s.recordResponse(&asrpb.StreamingRecognizeResponse{
@@ -67,8 +67,87 @@ func TestRecordResponseCommitsInterimAcrossPauseLikeReset(t *testing.T) {
 		}},
 	})
 
+	require.Empty(t, s.segments)
+	segments := collectSegments(s.segments, s.lastInterim)
+	require.Equal(t, []string{"second phrase"}, segments)
+}
+
+func TestRecordResponseCommitsStableDivergentInterimForPartialRecovery(t *testing.T) {
+	s := &Stream{}
+
+	s.recordResponse(&asrpb.StreamingRecognizeResponse{
+		Results: []*asrpb.StreamingRecognitionResult{{
+			IsFinal:      false,
+			Stability:    0.95,
+			Alternatives: []*asrpb.SpeechRecognitionAlternative{{Transcript: "first phrase"}},
+		}},
+	})
+
+	s.recordResponse(&asrpb.StreamingRecognizeResponse{
+		Results: []*asrpb.StreamingRecognitionResult{{
+			IsFinal:      false,
+			Stability:    0.20,
+			Alternatives: []*asrpb.SpeechRecognitionAlternative{{Transcript: "second phrase"}},
+		}},
+	})
+
+	require.Equal(t, []string{"first phrase"}, s.segments)
 	segments := collectSegments(s.segments, s.lastInterim)
 	require.Equal(t, []string{"first phrase", "second phrase"}, segments)
+}
+
+func TestRecordResponseDoesNotPrependStaleInterimBeforeFinal(t *testing.T) {
+	s := &Stream{}
+
+	s.recordResponse(&asrpb.StreamingRecognizeResponse{
+		Results: []*asrpb.StreamingRecognitionResult{{
+			IsFinal:      false,
+			Stability:    0.05,
+			Alternatives: []*asrpb.SpeechRecognitionAlternative{{Transcript: "stale words"}},
+		}},
+	})
+
+	s.recordResponse(&asrpb.StreamingRecognizeResponse{
+		Results: []*asrpb.StreamingRecognitionResult{{
+			IsFinal:      false,
+			Stability:    0.30,
+			Alternatives: []*asrpb.SpeechRecognitionAlternative{{Transcript: "hello world"}},
+		}},
+	})
+
+	s.recordResponse(&asrpb.StreamingRecognizeResponse{
+		Results: []*asrpb.StreamingRecognitionResult{{
+			IsFinal:      true,
+			Alternatives: []*asrpb.SpeechRecognitionAlternative{{Transcript: "hello world"}},
+		}},
+	})
+
+	segments := collectSegments(s.segments, s.lastInterim)
+	require.Equal(t, []string{"hello world"}, segments)
+}
+
+func TestRecordResponseTreatsSuffixCorrectionAsContinuation(t *testing.T) {
+	s := &Stream{}
+
+	s.recordResponse(&asrpb.StreamingRecognizeResponse{
+		Results: []*asrpb.StreamingRecognitionResult{{
+			IsFinal:      false,
+			Stability:    0.95,
+			Alternatives: []*asrpb.SpeechRecognitionAlternative{{Transcript: "replace reply replied on the review thread with details"}},
+		}},
+	})
+
+	s.recordResponse(&asrpb.StreamingRecognizeResponse{
+		Results: []*asrpb.StreamingRecognitionResult{{
+			IsFinal:      false,
+			Stability:    0.95,
+			Alternatives: []*asrpb.SpeechRecognitionAlternative{{Transcript: "replied on the review thread with details"}},
+		}},
+	})
+
+	require.Empty(t, s.segments)
+	segments := collectSegments(s.segments, s.lastInterim)
+	require.Equal(t, []string{"replied on the review thread with details"}, segments)
 }
 
 func TestAppendSegmentDedupAndPrefixMerge(t *testing.T) {
@@ -94,7 +173,13 @@ func TestCleanSegmentAndInterimContinuation(t *testing.T) {
 
 	require.True(t, isInterimContinuation("hello", "hello world"))
 	require.True(t, isInterimContinuation("hello world", "hello"))
+	require.True(t, isInterimContinuation("replace reply replied on thread", "replied on thread"))
 	require.False(t, isInterimContinuation("first phrase", "second phrase"))
+
+	require.False(t, shouldCommitPriorInterimOnDivergence("first phrase", 0.2, "second phrase"))
+	require.True(t, shouldCommitPriorInterimOnDivergence("first phrase", 0.9, "second phrase"))
+	require.True(t, shouldCommitPriorInterimOnDivergence("Done.", 0.1, "new sentence"))
+	require.False(t, shouldCommitPriorInterimOnDivergence("replace reply replied on thread", 0.95, "replied on thread"))
 }
 
 func TestDialStreamEndToEndWithDebugSinkAndSpeechContexts(t *testing.T) {
