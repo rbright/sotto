@@ -75,8 +75,8 @@ func shouldCommitPriorInterimOnDivergence(previous string, previousStability flo
 	if isInterimContinuation(previous, current) {
 		return false
 	}
-	if previousStability >= stableInterimBoundaryThreshold {
-		return true
+	if previousStability < stableInterimBoundaryThreshold {
+		return false
 	}
 	return endsWithSentencePunctuation(previous)
 }
