@@ -41,12 +41,13 @@ type Stream struct {
 
 	recvDone chan struct{}
 
-	mu            sync.Mutex
-	segments      []string // committed transcript segments (final results only)
-	lastInterim   string
-	recvErr       error
-	closedSend    bool
-	debugSinkJSON io.Writer
+	mu             sync.Mutex
+	segments       []string // committed transcript segments (final results and sealed interim chains)
+	lastInterim    string
+	lastInterimAge int
+	recvErr        error
+	closedSend     bool
+	debugSinkJSON  io.Writer
 }
 
 // DialStream establishes a stream, sends config, and starts the receive loop.

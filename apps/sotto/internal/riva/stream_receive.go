@@ -53,10 +53,22 @@ func (s *Stream) recordResponse(resp *asrpb.StreamingRecognizeResponse) {
 		if result.GetIsFinal() {
 			s.segments = appendSegment(s.segments, transcript)
 			s.lastInterim = ""
+			s.lastInterimAge = 0
 			continue
 		}
 
-		// Keep only the latest interim hypothesis within a toggle session.
+		if s.lastInterim != "" {
+			if isInterimContinuation(s.lastInterim, transcript) {
+				s.lastInterim = transcript
+				s.lastInterimAge++
+				continue
+			}
+			if shouldCommitInterimBoundary(s.lastInterim, s.lastInterimAge) {
+				s.segments = appendSegment(s.segments, s.lastInterim)
+			}
+		}
+
 		s.lastInterim = transcript
+		s.lastInterimAge = 1
 	}
 }
