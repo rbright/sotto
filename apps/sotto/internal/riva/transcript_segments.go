@@ -2,7 +2,10 @@ package riva
 
 import "strings"
 
-const minInterimChainUpdates = 2
+const (
+	minInterimChainUpdates         = 2
+	stableInterimBoundaryThreshold = 0.85
+)
 
 // collectSegments appends a valid trailing interim segment when needed.
 func collectSegments(committedSegments []string, lastInterim string) []string {
@@ -77,8 +80,31 @@ func isInterimContinuation(previous string, current string) bool {
 
 // shouldCommitInterimBoundary returns true when a divergent interim chain looks
 // established enough to preserve as a committed segment.
-func shouldCommitInterimBoundary(previous string, chainUpdates int) bool {
-	return cleanSegment(previous) != "" && chainUpdates >= minInterimChainUpdates
+func shouldCommitInterimBoundary(previous string, chainUpdates int, stability float32) bool {
+	previous = cleanSegment(previous)
+	if previous == "" {
+		return false
+	}
+	if chainUpdates >= minInterimChainUpdates {
+		return true
+	}
+	if stability >= stableInterimBoundaryThreshold {
+		return true
+	}
+	return endsWithSentencePunctuation(previous)
+}
+
+func endsWithSentencePunctuation(text string) bool {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return false
+	}
+	switch text[len(text)-1] {
+	case '.', '!', '?':
+		return true
+	default:
+		return false
+	}
 }
 
 // commonPrefixWords counts shared leading words across two slices.

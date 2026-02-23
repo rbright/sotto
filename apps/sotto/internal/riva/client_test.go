@@ -82,6 +82,30 @@ func TestRecordResponseReplacesDivergentInterimWithoutPrecommit(t *testing.T) {
 	require.Equal(t, []string{"second phrase"}, segments)
 }
 
+func TestRecordResponseCommitsStableSingleInterimOnDivergence(t *testing.T) {
+	s := &Stream{}
+
+	s.recordResponse(&asrpb.StreamingRecognizeResponse{
+		Results: []*asrpb.StreamingRecognitionResult{{
+			IsFinal:      false,
+			Stability:    0.95,
+			Alternatives: []*asrpb.SpeechRecognitionAlternative{{Transcript: "first phrase"}},
+		}},
+	})
+
+	s.recordResponse(&asrpb.StreamingRecognizeResponse{
+		Results: []*asrpb.StreamingRecognitionResult{{
+			IsFinal:      false,
+			Stability:    0.20,
+			Alternatives: []*asrpb.SpeechRecognitionAlternative{{Transcript: "second phrase"}},
+		}},
+	})
+
+	require.Equal(t, []string{"first phrase"}, s.segments)
+	segments := collectSegments(s.segments, s.lastInterim)
+	require.Equal(t, []string{"first phrase", "second phrase"}, segments)
+}
+
 func TestRecordResponseCommitsInterimChainOnDivergence(t *testing.T) {
 	s := &Stream{}
 
@@ -220,9 +244,11 @@ func TestInterimHelpers(t *testing.T) {
 		})
 	}
 
-	require.False(t, shouldCommitInterimBoundary("", 5))
-	require.False(t, shouldCommitInterimBoundary("first phrase", 1))
-	require.True(t, shouldCommitInterimBoundary("first phrase", 2))
+	require.False(t, shouldCommitInterimBoundary("", 5, 0.9))
+	require.False(t, shouldCommitInterimBoundary("first phrase", 1, 0.1))
+	require.True(t, shouldCommitInterimBoundary("first phrase", 2, 0.1))
+	require.True(t, shouldCommitInterimBoundary("first phrase", 1, 0.9))
+	require.True(t, shouldCommitInterimBoundary("done.", 1, 0.0))
 }
 
 func TestDialStreamEndToEndWithDebugSinkAndSpeechContexts(t *testing.T) {
