@@ -3,12 +3,18 @@ package app
 import (
 	"bytes"
 	"context"
+	"errors"
+	"log/slog"
 	"net"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
+	"time"
 
+	"github.com/rbright/sotto/internal/fsm"
 	"github.com/rbright/sotto/internal/ipc"
+	"github.com/rbright/sotto/internal/session"
 	"github.com/stretchr/testify/require"
 )
 
@@ -199,6 +205,88 @@ func TestRunnerDevicesCommandDispatches(t *testing.T) {
 	exitCode := runner.Execute(context.Background(), []string{"--config", paths.configPath, "devices"})
 	require.Equal(t, 1, exitCode)
 	require.Contains(t, stderr.String(), "error:")
+}
+
+func TestRunnerToggleOwnerPathReturnsErrorWhenCaptureStartupFails(t *testing.T) {
+	paths := setupRunnerEnv(t)
+	t.Setenv("PULSE_SERVER", "unix:/tmp/definitely-missing-pulse-server")
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	runner := Runner{Stdout: &stdout, Stderr: &stderr}
+
+	exitCode := runner.Execute(context.Background(), []string{"--config", paths.configPath, "toggle"})
+	require.Equal(t, 1, exitCode)
+	require.Contains(t, stderr.String(), "error:")
+
+	// owner path should clean up runtime socket on exit
+	_, statErr := os.Stat(filepath.Join(paths.runtimeDir, "sotto.sock"))
+	require.ErrorIs(t, statErr, os.ErrNotExist)
+}
+
+func TestRunnerStatusFallsBackToIdleWhenServerStateEmpty(t *testing.T) {
+	paths := setupRunnerEnv(t)
+
+	shutdown := startIPCServerForRunnerTest(t, filepath.Join(paths.runtimeDir, "sotto.sock"), func(_ context.Context, req ipc.Request) ipc.Response {
+		require.Equal(t, "status", req.Command)
+		return ipc.Response{OK: true, State: ""}
+	})
+	defer shutdown()
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	runner := Runner{Stdout: &stdout, Stderr: &stderr}
+
+	exitCode := runner.Execute(context.Background(), []string{"--config", paths.configPath, "status"})
+	require.Equal(t, 0, exitCode)
+	require.Equal(t, "idle\n", stdout.String())
+	require.Empty(t, stderr.String())
+}
+
+func TestSocketErrorHelpers(t *testing.T) {
+	require.False(t, isSocketMissing(nil))
+	require.False(t, isConnectionRefused(nil))
+
+	require.True(t, isSocketMissing(os.ErrNotExist))
+	require.True(t, isSocketMissing(errors.New("dial unix /tmp/sotto.sock: no such file or directory")))
+	require.False(t, isSocketMissing(errors.New("other error")))
+
+	require.True(t, isConnectionRefused(syscall.ECONNREFUSED))
+	require.False(t, isConnectionRefused(errors.New("other error")))
+}
+
+func TestLogSessionResultWritesFailureAndSuccess(t *testing.T) {
+	var logBuf bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&logBuf, nil))
+
+	started := time.Now()
+	finished := started.Add(1500 * time.Millisecond)
+
+	logSessionResult(logger, session.Result{
+		State:         fsm.StateIdle,
+		Cancelled:     false,
+		StartedAt:     started,
+		FinishedAt:    finished,
+		AudioDevice:   "Mic",
+		BytesCaptured: 123,
+		Transcript:    "hello",
+		GRPCLatency:   20 * time.Millisecond,
+	})
+
+	require.Contains(t, logBuf.String(), "session complete")
+	require.Contains(t, logBuf.String(), "\"transcript_length\":5")
+
+	logBuf.Reset()
+	logSessionResult(logger, session.Result{
+		State:       fsm.StateIdle,
+		StartedAt:   started,
+		FinishedAt:  finished,
+		Transcript:  "",
+		Err:         errors.New("boom"),
+		GRPCLatency: 2 * time.Millisecond,
+	})
+	require.Contains(t, logBuf.String(), "session failed")
+	require.Contains(t, logBuf.String(), "boom")
 }
 
 type runnerPaths struct {

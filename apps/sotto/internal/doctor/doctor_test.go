@@ -131,3 +131,65 @@ func TestCheckAudioSelectionFailureWithInvalidPulseServer(t *testing.T) {
 	require.False(t, check.Pass)
 	require.Contains(t, check.Name, "audio.device")
 }
+
+func TestReportOKAllPassing(t *testing.T) {
+	report := Report{Checks: []Check{{Name: "one", Pass: true}, {Name: "two", Pass: true}}}
+	require.True(t, report.OK())
+}
+
+func TestRunUsesPasteCmdOverrideCheck(t *testing.T) {
+	binDir := t.TempDir()
+	fakePaste := filepath.Join(binDir, "fake-paste")
+	require.NoError(t, os.WriteFile(fakePaste, []byte("#!/usr/bin/env sh\nexit 0\n"), 0o755))
+	t.Setenv("PATH", binDir+":"+os.Getenv("PATH"))
+	t.Setenv("PULSE_SERVER", "unix:/tmp/definitely-missing-pulse-server")
+	t.Setenv("XDG_SESSION_TYPE", "wayland")
+	t.Setenv("HYPRLAND_INSTANCE_SIGNATURE", "abc123")
+
+	cfg := config.Default()
+	cfg.Paste.Enable = true
+	cfg.PasteCmd = config.CommandConfig{Raw: fakePaste, Argv: []string{"fake-paste"}}
+	cfg.RivaHTTP = ""
+
+	report := Run(config.Loaded{Path: "/tmp/config.jsonc", Config: cfg})
+	require.NotEmpty(t, report.Checks)
+
+	var sawPasteCmd, sawHypr bool
+	for _, check := range report.Checks {
+		if check.Name == "fake-paste" {
+			sawPasteCmd = true
+		}
+		if check.Name == "hyprctl" {
+			sawHypr = true
+		}
+	}
+	require.True(t, sawPasteCmd)
+	require.False(t, sawHypr)
+}
+
+func TestRunUsesHyprctlWhenPasteCmdUnset(t *testing.T) {
+	binDir := t.TempDir()
+	fakeHypr := filepath.Join(binDir, "hyprctl")
+	require.NoError(t, os.WriteFile(fakeHypr, []byte("#!/usr/bin/env sh\nexit 0\n"), 0o755))
+	t.Setenv("PATH", binDir+":"+os.Getenv("PATH"))
+	t.Setenv("PULSE_SERVER", "unix:/tmp/definitely-missing-pulse-server")
+	t.Setenv("XDG_SESSION_TYPE", "wayland")
+	t.Setenv("HYPRLAND_INSTANCE_SIGNATURE", "abc123")
+
+	cfg := config.Default()
+	cfg.Paste.Enable = true
+	cfg.PasteCmd = config.CommandConfig{}
+	cfg.RivaHTTP = ""
+
+	report := Run(config.Loaded{Path: "/tmp/config.jsonc", Config: cfg})
+	require.NotEmpty(t, report.Checks)
+
+	var sawHypr bool
+	for _, check := range report.Checks {
+		if check.Name == "hyprctl" {
+			sawHypr = true
+			break
+		}
+	}
+	require.True(t, sawHypr)
+}
