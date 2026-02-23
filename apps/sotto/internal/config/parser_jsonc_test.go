@@ -114,12 +114,7 @@ func TestParseJSONCTrimsIndicatorAndPasteFields(t *testing.T) {
 func TestParseJSONCRejectsMultipleTopLevelValues(t *testing.T) {
 	_, _, err := parseJSONC(`{"paste":{"enable":false}}{"paste":{"enable":true}}`, Default())
 	require.Error(t, err)
-	require.True(
-		t,
-		strings.Contains(err.Error(), "multiple JSON values") || strings.Contains(err.Error(), "unknown field"),
-		"unexpected error: %v",
-		err,
-	)
+	require.Contains(t, err.Error(), "multiple JSON values")
 }
 
 func TestParseJSONCTypeErrorIncludesLocation(t *testing.T) {
