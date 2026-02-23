@@ -423,7 +423,7 @@ func isJSONWhitespace(ch byte) bool {
 }
 
 func ensureSingleJSONValue(decoder *json.Decoder) error {
-	var extra struct{}
+	var extra json.RawMessage
 	err := decoder.Decode(&extra)
 	if errors.Is(err, io.EOF) {
 		return nil
