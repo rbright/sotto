@@ -2,6 +2,8 @@ package riva
 
 import "strings"
 
+const stableInterimBoundaryThreshold = 0.85
+
 // collectSegments appends a valid trailing interim segment when needed.
 func collectSegments(committedSegments []string, lastInterim string) []string {
 	segments := append([]string(nil), committedSegments...)
@@ -60,6 +62,37 @@ func isInterimContinuation(previous string, current string) bool {
 		return true
 	}
 	return common*2 >= shorter
+}
+
+// shouldCommitPriorInterimOnDivergence decides whether to preserve prior interim
+// text when a new interim hypothesis diverges.
+func shouldCommitPriorInterimOnDivergence(previous string, previousStability float32, current string) bool {
+	previous = cleanSegment(previous)
+	current = cleanSegment(current)
+	if previous == "" || current == "" {
+		return false
+	}
+	if isInterimContinuation(previous, current) {
+		return false
+	}
+	if previousStability >= stableInterimBoundaryThreshold {
+		return true
+	}
+	return endsWithSentencePunctuation(previous)
+}
+
+// endsWithSentencePunctuation reports whether transcript looks sentence-complete.
+func endsWithSentencePunctuation(transcript string) bool {
+	transcript = strings.TrimSpace(transcript)
+	if transcript == "" {
+		return false
+	}
+	switch transcript[len(transcript)-1] {
+	case '.', '!', '?':
+		return true
+	default:
+		return false
+	}
 }
 
 // commonPrefixWords counts shared leading words across two slices.

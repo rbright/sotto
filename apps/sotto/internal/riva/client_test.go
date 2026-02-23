@@ -72,12 +72,37 @@ func TestRecordResponseReplacesDivergentInterimWithoutPrecommit(t *testing.T) {
 	require.Equal(t, []string{"second phrase"}, segments)
 }
 
+func TestRecordResponseCommitsStableDivergentInterimForPartialRecovery(t *testing.T) {
+	s := &Stream{}
+
+	s.recordResponse(&asrpb.StreamingRecognizeResponse{
+		Results: []*asrpb.StreamingRecognitionResult{{
+			IsFinal:      false,
+			Stability:    0.95,
+			Alternatives: []*asrpb.SpeechRecognitionAlternative{{Transcript: "first phrase"}},
+		}},
+	})
+
+	s.recordResponse(&asrpb.StreamingRecognizeResponse{
+		Results: []*asrpb.StreamingRecognitionResult{{
+			IsFinal:      false,
+			Stability:    0.20,
+			Alternatives: []*asrpb.SpeechRecognitionAlternative{{Transcript: "second phrase"}},
+		}},
+	})
+
+	require.Equal(t, []string{"first phrase"}, s.segments)
+	segments := collectSegments(s.segments, s.lastInterim)
+	require.Equal(t, []string{"first phrase", "second phrase"}, segments)
+}
+
 func TestRecordResponseDoesNotPrependStaleInterimBeforeFinal(t *testing.T) {
 	s := &Stream{}
 
 	s.recordResponse(&asrpb.StreamingRecognizeResponse{
 		Results: []*asrpb.StreamingRecognitionResult{{
 			IsFinal:      false,
+			Stability:    0.05,
 			Alternatives: []*asrpb.SpeechRecognitionAlternative{{Transcript: "stale words"}},
 		}},
 	})
@@ -85,6 +110,7 @@ func TestRecordResponseDoesNotPrependStaleInterimBeforeFinal(t *testing.T) {
 	s.recordResponse(&asrpb.StreamingRecognizeResponse{
 		Results: []*asrpb.StreamingRecognitionResult{{
 			IsFinal:      false,
+			Stability:    0.30,
 			Alternatives: []*asrpb.SpeechRecognitionAlternative{{Transcript: "hello world"}},
 		}},
 	})
@@ -124,6 +150,10 @@ func TestCleanSegmentAndInterimContinuation(t *testing.T) {
 	require.True(t, isInterimContinuation("hello", "hello world"))
 	require.True(t, isInterimContinuation("hello world", "hello"))
 	require.False(t, isInterimContinuation("first phrase", "second phrase"))
+
+	require.False(t, shouldCommitPriorInterimOnDivergence("first phrase", 0.2, "second phrase"))
+	require.True(t, shouldCommitPriorInterimOnDivergence("first phrase", 0.9, "second phrase"))
+	require.True(t, shouldCommitPriorInterimOnDivergence("Done.", 0, "new sentence"))
 }
 
 func TestDialStreamEndToEndWithDebugSinkAndSpeechContexts(t *testing.T) {
