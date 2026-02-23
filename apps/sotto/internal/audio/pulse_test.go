@@ -1,6 +1,7 @@
 package audio
 
 import (
+	"context"
 	"io"
 	"reflect"
 	"testing"
@@ -57,6 +58,18 @@ func TestDeviceMatchesByIDAndDescription(t *testing.T) {
 	require.True(t, deviceMatches(dev, "elgato"))
 	require.True(t, deviceMatches(dev, "wave 3"))
 	require.False(t, deviceMatches(dev, "missing"))
+}
+
+func TestListDevicesFailsWhenPulseUnavailable(t *testing.T) {
+	t.Setenv("PULSE_SERVER", "unix:/tmp/definitely-missing-pulse-server")
+	_, err := ListDevices(context.Background())
+	require.Error(t, err)
+}
+
+func TestSelectDeviceFailsWhenPulseUnavailable(t *testing.T) {
+	t.Setenv("PULSE_SERVER", "unix:/tmp/definitely-missing-pulse-server")
+	_, err := SelectDevice(context.Background(), "default", "default")
+	require.Error(t, err)
 }
 
 func TestSourceStateString(t *testing.T) {
@@ -134,6 +147,19 @@ func TestCaptureOnPCMReturnsEOFWhenStopped(t *testing.T) {
 	require.Equal(t, 0, n)
 	require.ErrorIs(t, err, io.EOF)
 	require.Equal(t, int64(0), capture.BytesCaptured())
+}
+
+func TestCaptureDeviceAndCloseAlias(t *testing.T) {
+	capture := &Capture{
+		device: Device{ID: "mic-1", Description: "Mic"},
+		chunks: make(chan []byte, 1),
+		stopCh: make(chan struct{}),
+	}
+	require.Equal(t, "mic-1", capture.Device().ID)
+
+	capture.Close()
+	_, ok := <-capture.Chunks()
+	require.False(t, ok)
 }
 
 type sourcePort struct {
