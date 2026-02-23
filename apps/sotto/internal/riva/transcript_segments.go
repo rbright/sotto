@@ -50,10 +50,12 @@ func isInterimContinuation(previous string, current string) bool {
 	if strings.HasPrefix(current, previous) || strings.HasPrefix(previous, current) {
 		return true
 	}
+	if strings.HasSuffix(current, previous) || strings.HasSuffix(previous, current) {
+		return true
+	}
 
 	prevWords := strings.Fields(previous)
 	currWords := strings.Fields(current)
-	common := commonPrefixWords(prevWords, currWords)
 	shorter := len(prevWords)
 	if len(currWords) < shorter {
 		shorter = len(currWords)
@@ -61,7 +63,18 @@ func isInterimContinuation(previous string, current string) bool {
 	if shorter == 0 {
 		return true
 	}
-	return common*2 >= shorter
+
+	commonPrefix := commonPrefixWords(prevWords, currWords)
+	if commonPrefix*2 >= shorter {
+		return true
+	}
+
+	commonSuffix := commonSuffixWords(prevWords, currWords)
+	if shorter >= 3 && commonSuffix*2 >= shorter {
+		return true
+	}
+
+	return false
 }
 
 // shouldCommitPriorInterimOnDivergence decides whether to preserve prior interim
@@ -75,8 +88,8 @@ func shouldCommitPriorInterimOnDivergence(previous string, previousStability flo
 	if isInterimContinuation(previous, current) {
 		return false
 	}
-	if previousStability < stableInterimBoundaryThreshold {
-		return false
+	if previousStability >= stableInterimBoundaryThreshold {
+		return true
 	}
 	return endsWithSentencePunctuation(previous)
 }
@@ -107,6 +120,22 @@ func commonPrefixWords(left []string, right []string) int {
 			break
 		}
 		count++
+	}
+	return count
+}
+
+// commonSuffixWords counts shared trailing words across two slices.
+func commonSuffixWords(left []string, right []string) int {
+	li := len(left) - 1
+	ri := len(right) - 1
+	count := 0
+	for li >= 0 && ri >= 0 {
+		if left[li] != right[ri] {
+			break
+		}
+		count++
+		li--
+		ri--
 	}
 	return count
 }
