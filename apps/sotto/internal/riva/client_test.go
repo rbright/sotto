@@ -106,6 +106,54 @@ func TestRecordResponseCommitsStableSingleInterimOnDivergence(t *testing.T) {
 	require.Equal(t, []string{"first phrase", "second phrase"}, segments)
 }
 
+func TestRecordResponseCommitsOneShotInterimOnAudioAdvance(t *testing.T) {
+	s := &Stream{}
+
+	s.recordResponse(&asrpb.StreamingRecognizeResponse{
+		Results: []*asrpb.StreamingRecognitionResult{{
+			IsFinal:        false,
+			AudioProcessed: 1.0,
+			Alternatives:   []*asrpb.SpeechRecognitionAlternative{{Transcript: "first phrase has enough words"}},
+		}},
+	})
+
+	s.recordResponse(&asrpb.StreamingRecognizeResponse{
+		Results: []*asrpb.StreamingRecognitionResult{{
+			IsFinal:        false,
+			AudioProcessed: 2.0,
+			Alternatives:   []*asrpb.SpeechRecognitionAlternative{{Transcript: "second phrase continues now"}},
+		}},
+	})
+
+	require.Equal(t, []string{"first phrase has enough words"}, s.segments)
+	segments := collectSegments(s.segments, s.lastInterim)
+	require.Equal(t, []string{"first phrase has enough words", "second phrase continues now"}, segments)
+}
+
+func TestRecordResponseKeepsOneShotInterimWhenAudioAdvanceIsSmall(t *testing.T) {
+	s := &Stream{}
+
+	s.recordResponse(&asrpb.StreamingRecognizeResponse{
+		Results: []*asrpb.StreamingRecognitionResult{{
+			IsFinal:        false,
+			AudioProcessed: 1.0,
+			Alternatives:   []*asrpb.SpeechRecognitionAlternative{{Transcript: "first phrase has enough words"}},
+		}},
+	})
+
+	s.recordResponse(&asrpb.StreamingRecognizeResponse{
+		Results: []*asrpb.StreamingRecognitionResult{{
+			IsFinal:        false,
+			AudioProcessed: 1.2,
+			Alternatives:   []*asrpb.SpeechRecognitionAlternative{{Transcript: "second phrase continues now"}},
+		}},
+	})
+
+	require.Empty(t, s.segments)
+	segments := collectSegments(s.segments, s.lastInterim)
+	require.Equal(t, []string{"second phrase continues now"}, segments)
+}
+
 func TestRecordResponseCommitsInterimChainOnDivergence(t *testing.T) {
 	s := &Stream{}
 
@@ -244,11 +292,13 @@ func TestInterimHelpers(t *testing.T) {
 		})
 	}
 
-	require.False(t, shouldCommitInterimBoundary("", 5, 0.9))
-	require.False(t, shouldCommitInterimBoundary("first phrase", 1, 0.1))
-	require.True(t, shouldCommitInterimBoundary("first phrase", 2, 0.1))
-	require.True(t, shouldCommitInterimBoundary("first phrase", 1, 0.9))
-	require.True(t, shouldCommitInterimBoundary("done.", 1, 0.0))
+	require.False(t, shouldCommitInterimBoundary("", 5, 0.9, 1.0, 2.0))
+	require.False(t, shouldCommitInterimBoundary("first phrase", 1, 0.1, 1.0, 1.2))
+	require.True(t, shouldCommitInterimBoundary("first phrase", 2, 0.1, 1.0, 1.1))
+	require.True(t, shouldCommitInterimBoundary("first phrase", 1, 0.9, 1.0, 1.1))
+	require.True(t, shouldCommitInterimBoundary("done.", 1, 0.0, 1.0, 1.1))
+	require.True(t, shouldCommitInterimBoundary("first phrase has enough words", 1, 0.1, 1.0, 2.0))
+	require.False(t, shouldCommitInterimBoundary("too short", 1, 0.1, 1.0, 2.0))
 }
 
 func TestDialStreamEndToEndWithDebugSinkAndSpeechContexts(t *testing.T) {
