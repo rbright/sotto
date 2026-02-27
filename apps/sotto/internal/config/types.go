@@ -38,7 +38,8 @@ type ASRConfig struct {
 
 // TranscriptConfig controls transcript assembly formatting.
 type TranscriptConfig struct {
-	TrailingSpace bool
+	TrailingSpace       bool
+	CapitalizeSentences bool
 }
 
 // IndicatorConfig controls visual indicator and audio cue behavior.

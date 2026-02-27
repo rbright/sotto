@@ -175,6 +175,18 @@ func TestParsePasteShortcut(t *testing.T) {
 	}
 }
 
+func TestParseTranscriptCapitalizeSentencesJSONC(t *testing.T) {
+	cfg, _, err := Parse(`{"transcript":{"capitalize_sentences":false}}`, Default())
+	require.NoError(t, err)
+	require.False(t, cfg.Transcript.CapitalizeSentences)
+}
+
+func TestParseTranscriptCapitalizeSentencesLegacy(t *testing.T) {
+	cfg, _, err := Parse("transcript.capitalize_sentences = false\n", Default())
+	require.NoError(t, err)
+	require.False(t, cfg.Transcript.CapitalizeSentences)
+}
+
 func TestParseIndicatorBackend(t *testing.T) {
 	cfg, _, err := Parse(`
 {

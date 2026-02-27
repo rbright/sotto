@@ -218,6 +218,12 @@ func applyRootKey(cfg *Config, key, value string) error {
 			return fmt.Errorf("invalid bool for transcript.trailing_space: %w", err)
 		}
 		cfg.Transcript.TrailingSpace = b
+	case "transcript.capitalize_sentences":
+		b, err := strconv.ParseBool(value)
+		if err != nil {
+			return fmt.Errorf("invalid bool for transcript.capitalize_sentences: %w", err)
+		}
+		cfg.Transcript.CapitalizeSentences = b
 	case "indicator.enable":
 		b, err := strconv.ParseBool(value)
 		if err != nil {

@@ -18,7 +18,10 @@ func Default() Config {
 			LanguageCode:         "en-US",
 			Model:                "",
 		},
-		Transcript: TranscriptConfig{TrailingSpace: true},
+		Transcript: TranscriptConfig{
+			TrailingSpace:       true,
+			CapitalizeSentences: true,
+		},
 		Indicator: IndicatorConfig{
 			Enable:         true,
 			Backend:        "hypr",

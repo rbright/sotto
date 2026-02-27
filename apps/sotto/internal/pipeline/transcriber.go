@@ -189,7 +189,10 @@ func (t *Transcriber) StopAndTranscribe(ctx context.Context) (session.StopResult
 		return result, fmt.Errorf("collect final transcript: %w", err)
 	}
 
-	transcribed := transcript.Assemble(segments, t.cfg.Transcript.TrailingSpace)
+	transcribed := transcript.Assemble(segments, transcript.Options{
+		TrailingSpace:       t.cfg.Transcript.TrailingSpace,
+		CapitalizeSentences: t.cfg.Transcript.CapitalizeSentences,
+	})
 	rawPCM := capture.RawPCM()
 	t.writeDebugAudio(rawPCM)
 	t.closeDebugArtifacts()
