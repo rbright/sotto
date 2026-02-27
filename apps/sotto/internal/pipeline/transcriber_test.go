@@ -260,7 +260,7 @@ func TestStopAndTranscribeSuccessPath(t *testing.T) {
 
 	result, err := transcriber.StopAndTranscribe(context.Background())
 	require.NoError(t, err)
-	require.Equal(t, "hello world ", result.Transcript)
+	require.Equal(t, "Hello world ", result.Transcript)
 	require.Equal(t, "Mic (mic-1)", result.AudioDevice)
 	require.Equal(t, int64(4096), result.BytesCaptured)
 	require.Equal(t, 12*time.Millisecond, result.GRPCLatency)

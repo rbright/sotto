@@ -45,7 +45,8 @@ type jsoncASR struct {
 }
 
 type jsoncTranscript struct {
-	TrailingSpace *bool `json:"trailing_space"`
+	TrailingSpace       *bool `json:"trailing_space"`
+	CapitalizeSentences *bool `json:"capitalize_sentences"`
 }
 
 type jsoncIndicator struct {
@@ -176,8 +177,13 @@ func (payload jsoncConfig) applyTo(cfg *Config) ([]Warning, error) {
 		}
 	}
 
-	if payload.Transcript != nil && payload.Transcript.TrailingSpace != nil {
-		cfg.Transcript.TrailingSpace = *payload.Transcript.TrailingSpace
+	if payload.Transcript != nil {
+		if payload.Transcript.TrailingSpace != nil {
+			cfg.Transcript.TrailingSpace = *payload.Transcript.TrailingSpace
+		}
+		if payload.Transcript.CapitalizeSentences != nil {
+			cfg.Transcript.CapitalizeSentences = *payload.Transcript.CapitalizeSentences
+		}
 	}
 
 	if payload.Indicator != nil {
