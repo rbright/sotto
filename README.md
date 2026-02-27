@@ -18,7 +18,7 @@ Local-first speech-to-text CLI.
 - single-instance command coordination via unix socket
 - audio capture via PipeWire/Pulse
 - streaming ASR via NVIDIA Riva gRPC
-- transcript normalization + optional trailing space
+- transcript normalization + sentence capitalization + optional trailing space
 - output adapters:
   - clipboard command (`clipboard_cmd`)
   - optional paste command override (`paste_cmd`)

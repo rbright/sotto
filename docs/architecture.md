@@ -12,7 +12,7 @@ flowchart LR
 
     Session --> Audio["Audio capture\n(PipeWire/Pulse)"]
     Session --> ASR["Riva streaming client\n(gRPC)"]
-    ASR --> Transcript["Transcript assembly\n(normalize + trailing space)"]
+    ASR --> Transcript["Transcript assembly\n(normalize + sentence case + trailing space)"]
     Transcript --> Output["Output adapters\n(clipboard + paste)"]
 
     Session --> Indicator["Indicator adapters\n(hypr or desktop) + cues"]
