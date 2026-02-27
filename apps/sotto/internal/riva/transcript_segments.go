@@ -3,8 +3,10 @@ package riva
 import "strings"
 
 const (
-	minInterimChainUpdates         = 2
-	stableInterimBoundaryThreshold = 0.85
+	minInterimChainUpdates             = 2
+	stableInterimBoundaryThreshold     = 0.85
+	interimBoundaryAudioAdvanceSeconds = 0.75
+	minInterimWordsForAudioBoundary    = 3
 )
 
 // collectSegments appends a valid trailing interim segment when needed.
@@ -80,7 +82,13 @@ func isInterimContinuation(previous string, current string) bool {
 
 // shouldCommitInterimBoundary returns true when a divergent interim chain looks
 // established enough to preserve as a committed segment.
-func shouldCommitInterimBoundary(previous string, chainUpdates int, stability float32) bool {
+func shouldCommitInterimBoundary(
+	previous string,
+	chainUpdates int,
+	stability float32,
+	previousAudioProcessed float32,
+	currentAudioProcessed float32,
+) bool {
 	previous = cleanSegment(previous)
 	if previous == "" {
 		return false
@@ -91,7 +99,23 @@ func shouldCommitInterimBoundary(previous string, chainUpdates int, stability fl
 	if stability >= stableInterimBoundaryThreshold {
 		return true
 	}
-	return endsWithSentencePunctuation(previous)
+	if endsWithSentencePunctuation(previous) {
+		return true
+	}
+	return advancedAudioBoundary(previous, previousAudioProcessed, currentAudioProcessed)
+}
+
+func advancedAudioBoundary(previous string, previousAudioProcessed float32, currentAudioProcessed float32) bool {
+	if previousAudioProcessed <= 0 || currentAudioProcessed <= 0 {
+		return false
+	}
+	if currentAudioProcessed <= previousAudioProcessed {
+		return false
+	}
+	if currentAudioProcessed-previousAudioProcessed < interimBoundaryAudioAdvanceSeconds {
+		return false
+	}
+	return len(strings.Fields(previous)) >= minInterimWordsForAudioBoundary
 }
 
 func endsWithSentencePunctuation(text string) bool {

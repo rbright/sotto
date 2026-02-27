@@ -55,17 +55,26 @@ func (s *Stream) recordResponse(resp *asrpb.StreamingRecognizeResponse) {
 			s.lastInterim = ""
 			s.lastInterimAge = 0
 			s.lastInterimStability = 0
+			s.lastInterimAudioProcessed = 0
 			continue
 		}
 
+		currentAudioProcessed := result.GetAudioProcessed()
 		if s.lastInterim != "" {
 			if isInterimContinuation(s.lastInterim, transcript) {
 				s.lastInterim = transcript
 				s.lastInterimAge++
 				s.lastInterimStability = result.GetStability()
+				s.lastInterimAudioProcessed = currentAudioProcessed
 				continue
 			}
-			if shouldCommitInterimBoundary(s.lastInterim, s.lastInterimAge, s.lastInterimStability) {
+			if shouldCommitInterimBoundary(
+				s.lastInterim,
+				s.lastInterimAge,
+				s.lastInterimStability,
+				s.lastInterimAudioProcessed,
+				currentAudioProcessed,
+			) {
 				s.segments = appendSegment(s.segments, s.lastInterim)
 			}
 		}
@@ -73,5 +82,6 @@ func (s *Stream) recordResponse(resp *asrpb.StreamingRecognizeResponse) {
 		s.lastInterim = transcript
 		s.lastInterimAge = 1
 		s.lastInterimStability = result.GetStability()
+		s.lastInterimAudioProcessed = currentAudioProcessed
 	}
 }
