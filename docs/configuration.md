@@ -73,6 +73,7 @@ Top-level object keys:
 | Key | Default | Notes |
 | --- | --- | --- |
 | `transcript.trailing_space` | `true` | append space after assembled transcript |
+| `transcript.capitalize_sentences` | `true` | sentence-case output and promote standalone `i`/`i'm` to `I`/`I'm` |
 
 ### `indicator`
 
@@ -153,7 +154,8 @@ default-timeout=0
   },
 
   "transcript": {
-    "trailing_space": true
+    "trailing_space": true,
+    "capitalize_sentences": true
   },
 
   "indicator": {
