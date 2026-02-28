@@ -52,6 +52,26 @@ func TestAssembleSentenceCaseCapitalizesPronounI(t *testing.T) {
 	require.Equal(t, "When I speak I'm clearer. I think I will keep using it.", got)
 }
 
+func TestAssembleSentenceCaseDoesNotCapitalizeDomainOrDecimalFragments(t *testing.T) {
+	t.Parallel()
+
+	got := Assemble([]string{"check example.com and v2.1 first. then reply"}, Options{
+		TrailingSpace:       false,
+		CapitalizeSentences: true,
+	})
+	require.Equal(t, "Check example.com and v2.1 first. Then reply", got)
+}
+
+func TestAssembleSentenceCaseHandlesQuoteAfterBoundary(t *testing.T) {
+	t.Parallel()
+
+	got := Assemble([]string{"he said. \"hello there\" and left."}, Options{
+		TrailingSpace:       false,
+		CapitalizeSentences: true,
+	})
+	require.Equal(t, "He said. \"Hello there\" and left.", got)
+}
+
 func TestAssembleIdempotentForNormalizedOutput(t *testing.T) {
 	t.Parallel()
 
