@@ -60,6 +60,8 @@ func capitalizeSentenceStarts(text string) string {
 		if capitalizeStart && unicode.IsLetter(r) {
 			r = unicode.ToUpper(r)
 			capitalizeStart = false
+			pendingBoundary = false
+			sawWhitespaceAfterBoundary = false
 		} else if pendingBoundary {
 			switch {
 			case unicode.IsSpace(r):

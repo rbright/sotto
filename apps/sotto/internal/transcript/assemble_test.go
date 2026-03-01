@@ -72,6 +72,16 @@ func TestAssembleSentenceCaseHandlesQuoteAfterBoundary(t *testing.T) {
 	require.Equal(t, "He said. \"Hello there\" and left.", got)
 }
 
+func TestAssembleSentenceCaseLeadingBoundaryDoesNotDoubleCapitalize(t *testing.T) {
+	t.Parallel()
+
+	got := Assemble([]string{"2. hello there"}, Options{
+		TrailingSpace:       false,
+		CapitalizeSentences: true,
+	})
+	require.Equal(t, "2. Hello there", got)
+}
+
 func TestAssembleIdempotentForNormalizedOutput(t *testing.T) {
 	t.Parallel()
 
